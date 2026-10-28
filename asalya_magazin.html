@@ -2,1338 +2,2086 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#2c3e50">
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>Асаля v82 - Складской учёт</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <title>Асаля — Склад и Касса</title>
+    <!-- Библиотека для генерации картинок чека и накладной для WhatsApp -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <!-- Универсальный SDK Firebase (работает даже внутри локального WebIntoApp APK!) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-database-compat.js"></script>
     <style>
         :root {
-            --p: #3498db;
-            --s: #2ecc71;
+            --p: #2980b9;
+            --s: #27ae60;
+            --w: #f39c12;
+            --e: #e74c3c;
             --d: #2c3e50;
             --l: #f4f7f6;
             --bg: #ffffff;
             --text: #2c3e50;
             --card-bg: #ffffff;
-            --border: #eee;
+            --border: #e0e6ed;
         }
         .dark-theme {
-            --bg: #1a1a1a;
-            --text: #ffffff;
-            --card-bg: #2d2d2d;
-            --border: #404040;
-            --l: #2d2d2d;
+            --bg: #121212;
+            --text: #e0e0e0;
+            --card-bg: #1e1e1e;
+            --border: #333333;
+            --l: #121212;
             --d: #ffffff;
         }
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            background: var(--l);
-            margin: 0;
-            padding: 20px;
-            color: var(--text);
-            transition: all 0.3s ease;
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
         }
-        .stats {
+        /* Жёсткая фиксация экрана от шатания влево-вправо и попыток зума на Android */
+        html, body {
+            width: 100%;
+            max-width: 100vw;
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+            touch-action: pan-y;
+            overscroll-behavior-x: none;
+            -webkit-text-size-adjust: 100%;
+        }
+        body {
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            background: var(--l);
+            padding: 12px 10px 40px 10px;
+            color: var(--text);
+            transition: background 0.2s, color 0.2s;
+        }
+        /* Верхняя панель */
+        .top-bar {
             display: flex;
-            gap: 15px;
-            max-width: 1550px;
-            margin: 0 auto 20px auto;
+            justify-content: space-between;
+            align-items: center;
+            max-width: 1600px;
+            margin: 0 auto 10px auto;
+            gap: 8px;
             flex-wrap: wrap;
         }
-        .stat-card {
-            flex: 1;
-            min-width: 120px;
+        .brand-title {
+            font-size: 1.2em;
+            font-weight: 800;
+            color: var(--p);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        /* Навигационные вкладки СВЕРХУ (не перекрываются системными кнопками Android!) */
+        .nav-tabs {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 6px;
+            max-width: 1600px;
+            margin: 0 auto 12px auto;
+            position: sticky;
+            top: 0;
+            z-index: 1500;
+            background: var(--l);
+            padding: 6px 0;
+        }
+        .tab-btn {
+            padding: 10px 6px;
             background: var(--card-bg);
-            padding: 15px;
+            color: var(--text);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            text-align: center;
+            margin: 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.04);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 3px;
+            line-height: 1.15;
+        }
+        .tab-btn.active {
+            background: var(--p);
+            color: #fff;
+            border-color: var(--p);
+            box-shadow: 0 3px 8px rgba(41, 128, 185, 0.35);
+        }
+        /* Статистика */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            max-width: 1600px;
+            margin: 0 auto 14px auto;
+        }
+        .stat-card {
+            background: var(--card-bg);
+            padding: 10px 6px;
             border-radius: 10px;
             text-align: center;
-            border-bottom: 4px solid var(--p);
+            border-bottom: 3px solid var(--p);
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+            font-size: 12px;
+            min-width: 0;
         }
+        .stat-card strong {
+            font-size: 1.2em;
+            display: block;
+            margin-top: 3px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .tab-section { display: none; max-width: 1600px; margin: 0 auto; width: 100%; }
+        .tab-section.active { display: block; }
+
         .grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            max-width: 1550px;
-            margin: 0 auto;
+            gap: 14px;
             align-items: start;
+            width: 100%;
         }
         .card {
             background: var(--card-bg);
-            padding: 20px;
+            padding: 14px;
             border-radius: 12px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-            margin-bottom: 20px;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.06);
+            margin-bottom: 14px;
+            border: 1px solid var(--border);
+            width: 100%;
+            min-width: 0;
+            overflow: hidden;
         }
-        h2 {
+        h2, h3 {
             margin-top: 0;
             border-bottom: 2px solid var(--p);
-            padding-bottom: 10px;
-            font-size: 1.2em;
+            padding-bottom: 8px;
+            font-size: 1.05em;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
         }
+        /* Шрифт 16px в полях ввода предотвращает авто-зум экрана на смартфонах! */
         input, select, button {
             padding: 10px;
             border: 1px solid var(--border);
-            border-radius: 6px;
+            border-radius: 7px;
             width: 100%;
-            margin-bottom: 10px;
-            box-sizing: border-box;
+            margin-bottom: 8px;
             background: var(--card-bg);
             color: var(--text);
             font-size: 16px;
+            min-width: 0;
         }
         .form-row {
             display: flex;
             gap: 8px;
+            align-items: center;
+            width: 100%;
+        }
+        .form-row > * {
+            min-width: 0;
         }
         button {
             cursor: pointer;
-            font-weight: bold;
+            font-weight: 700;
             background: var(--p);
             color: white;
             border: none;
+            transition: opacity 0.15s;
         }
-        button:hover { opacity: 0.9; }
+        button:active { transform: scale(0.99); }
+        .table-wrap {
+            overflow-x: auto;
+            width: 100%;
+            max-width: 100%;
+            -webkit-overflow-scrolling: touch;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 13px;
-            margin-top: 10px;
-            overflow-x: auto;
-            display: block;
+            font-size: 12.5px;
+            margin-top: 4px;
         }
         th, td {
             border: 1px solid var(--border);
-            padding: 8px;
+            padding: 6px 6px;
             text-align: left;
+            word-break: break-word;
         }
-        th { background: var(--p); color: white; }
-        .edit-btn, .delete-btn {
-            padding: 2px 5px;
-            margin: 0 2px;
-            border-radius: 3px;
+        th {
+            background: var(--p);
+            color: white;
+            white-space: nowrap;
+        }
+        .low-stock {
+            background: rgba(231, 76, 60, 0.15) !important;
+            color: #c0392b;
+            font-weight: 700;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 7px;
+            border-radius: 5px;
             font-size: 11px;
+            font-weight: bold;
+            color: #fff;
         }
-        .edit-btn { background: #f39c12; }
-        .delete-btn { background: #e74c3c; }
-        #cartTable td:last-child { text-align: center; }
-        #print-zone { display: none; }
+        .pack-box {
+            background: rgba(52, 152, 219, 0.08);
+            border: 1px dashed var(--p);
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .pack-box label {
+            font-size: 12px;
+            font-weight: 700;
+            display: block;
+            margin-bottom: 6px;
+        }
+        .btn-sm {
+            width: auto;
+            padding: 5px 8px;
+            margin: 1px;
+            font-size: 12px;
+        }
+        /* Модальные окна */
         .modal {
             display: none;
             position: fixed;
-            top: 0; left: 0;
-            width: 100%; height: 100%;
-            background: rgba(0,0,0,0.5);
-            z-index: 1000;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            z-index: 3000;
+            align-items: center;
+            justify-content: center;
+            padding: 12px;
+            overflow-y: auto;
         }
         .modal-content {
             background: var(--card-bg);
-            max-width: 500px;
-            margin: 60px auto;
-            padding: 20px;
-            border-radius: 10px;
-            max-height: 80vh;
+            width: 100%;
+            max-width: 460px;
+            padding: 16px;
+            border-radius: 12px;
+            max-height: 90vh;
             overflow-y: auto;
-        }
-        .theme-toggle {
-            position: fixed;
-            top: 20px; right: 20px;
-            width: 50px; height: 50px;
-            border-radius: 50%;
-            background: var(--p);
-            color: white; border: none;
-            cursor: pointer; z-index: 1000;
         }
         .notification {
             position: fixed;
-            bottom: 20px; right: 20px;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
             background: var(--s);
             color: white;
-            padding: 15px;
-            border-radius: 10px;
+            padding: 10px 18px;
+            border-radius: 8px;
             z-index: 9999;
-        }
-        .gift-btn { background: #e84342; flex: 1; }
-        .self-btn { background: #95a5a6; flex: 1; }
-        .sale-type { display: flex; gap: 10px; margin: 10px 0; }
-        .crm-panel { display: none; }
-        .crm-panel.active { display: block; }
-        .client-card {
-            background: var(--card-bg);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 12px;
-            margin-bottom: 10px;
-            cursor: pointer;
-            transition: box-shadow 0.2s;
-        }
-        .client-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
-        .client-name { font-weight: bold; font-size: 1em; }
-        .client-meta { font-size: 0.85em; color: #888; margin-top: 4px; }
-        .client-orders { margin-top: 10px; display: none; }
-        .client-orders.open { display: block; }
-        .order-row {
-            font-size: 12px;
-            padding: 4px 0;
-            border-bottom: 1px solid var(--border);
-        }
-        .wa-btn {
-            background: #25D366;
-            color: white;
-            padding: 4px 10px;
-            border-radius: 5px;
-            font-size: 12px;
-            text-decoration: none;
-            display: inline-block;
-        }
-        .tab-btns { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; }
-        .tab-btn {
-            flex: 1;
-            min-width: 120px;
-            background: var(--border);
-            color: var(--text);
-            border: none;
-            padding: 10px;
-            border-radius: 8px;
-            cursor: pointer;
             font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            white-space: nowrap;
         }
-        .tab-btn.active { background: var(--p); color: white; }
-        @media (max-width: 768px) {
+
+        /* ====== СТИЛИ ЧЕКА И НАКЛАДНОЙ (ДЛЯ ПРЕДПРОСМОТРА, КАРТИНКИ WHATSAPP И ПЕЧАТИ) ====== */
+        #docPreviewWrap {
+            background: #ffffff;
+            color: #000000;
+            padding: 8px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            overflow-x: auto;
+        }
+        /* Ультракомпактная накладная по всем 12 требованиям */
+        .inv-doc {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #000;
+            background: #fff;
+            font-size: 12px;
+            line-height: 1.12;
+            max-width: 580px;
+            margin: 0 auto;
+            padding: 4px;
+            border: 1px solid #000;
+        }
+        .inv-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            border-bottom: 1.5px solid #000;
+            padding-bottom: 2px;
+            margin-bottom: 2px;
+        }
+        .inv-header h1 { margin: 0; font-size: 16px; font-weight: 800; color: #000; line-height: 1.05; }
+        .inv-sub { font-size: 10.5px; margin: 0; color: #000; }
+        .inv-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2px;
+            font-size: 11.5px;
+        }
+        .inv-recipient {
+            border: 1px solid #000;
+            padding: 2px 5px;
+            margin-bottom: 3px;
+            font-weight: 700;
+            font-size: 11.5px;
+        }
+        .inv-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0;
+        }
+        .inv-table th, .inv-table td {
+            border: 1px solid #000;
+            padding: 2px 4px;
+            font-size: 11px;
+            color: #000;
+            line-height: 1.08;
+        }
+        .inv-table th { background: #eaeaea; font-weight: 700; text-align: left; }
+        .inv-footer {
+            margin-top: 3px;
+            font-size: 11px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        /* Стильный товарный чек / Предварительный расчёт для клиента */
+        .rec-doc {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            color: #1a1a1a;
+            background: #fffdf9;
+            max-width: 350px;
+            margin: 0 auto;
+            padding: 12px;
+            border: 1px solid #dcd6cc;
+            border-radius: 8px;
+        }
+        .rec-head {
+            text-align: center;
+            border-bottom: 1px dashed #888;
+            padding-bottom: 6px;
+            margin-bottom: 6px;
+        }
+        .rec-head h1 { margin: 0; font-size: 19px; font-weight: 800; color: #1a1a1a; }
+        .rec-head p { margin: 1px 0; font-size: 11.5px; color: #444; }
+        .rec-badge {
+            display: block;
+            text-align: center;
+            padding: 4px;
+            border-radius: 5px;
+            font-weight: 800;
+            font-size: 11.5px;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+        }
+        .rec-badge.pre { background: #fef3c7; color: #b45309; border: 1px solid #f59e0b; }
+        .rec-badge.paid { background: #d1fae5; color: #065f46; border: 1px solid #10b981; }
+        .rec-item {
+            border-bottom: 1px dotted #ccc;
+            padding: 4px 0;
+            font-size: 12.5px;
+        }
+        .rec-item-title { font-weight: 700; display: flex; justify-content: space-between; gap: 6px; }
+        .rec-item-sub { font-size: 11px; color: #555; display: flex; justify-content: space-between; margin-top: 1px; }
+        .rec-total {
+            margin-top: 6px;
+            padding-top: 5px;
+            border-top: 2px solid #1a1a1a;
+            display: flex;
+            justify-content: space-between;
+            font-size: 15px;
+            font-weight: 800;
+        }
+        .rec-bank {
+            margin-top: 8px;
+            padding: 6px;
+            background: #f3f4f6;
+            border-radius: 6px;
+            font-size: 11.5px;
+            text-align: center;
+            line-height: 1.3;
+        }
+
+        /* Адаптация под экраны телефонов Android */
+        @media (max-width: 820px) {
             .grid { grid-template-columns: 1fr; }
-            .stats { flex-direction: column; }
-            .theme-toggle { top: 10px; right: 10px; width: 40px; height: 40px; }
-            table { font-size: 11px; }
-            th, td { padding: 5px; }
+            .stats { grid-template-columns: repeat(2, 1fr); }
+            .nav-tabs {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 6px;
+            }
+            .tab-btn {
+                font-size: 12.5px;
+                padding: 9px 6px;
+                flex-direction: row;
+                gap: 5px;
+            }
+            .form-row.mobile-stack {
+                flex-direction: column;
+                gap: 0;
+            }
         }
         @media print {
             body * { visibility: hidden; }
             #print-zone, #print-zone * { visibility: visible; }
             #print-zone { display: block !important; position: absolute; top: 0; left: 0; width: 100%; }
         }
+        #print-zone { display: none; }
     </style>
 </head>
 <body>
-    <button class="theme-toggle" id="themeToggleBtn">🌓</button>
 
-    <!-- Статус синхронизации — всегда сверху -->
-    <div style="max-width:1550px; margin:0 auto 12px auto;">
-        <div id="syncStatus" style="background:#95a5a6; color:white; padding:10px 18px; border-radius:10px; font-size:15px; font-weight:bold; display:inline-block;">
-            📡 Статус: Загрузка...
+    <div class="top-bar">
+        <div class="brand-title">
+            <span>🦅 АСАЛЯ — Учёт</span>
+            <span id="syncStatus" class="badge" style="background:#95a5a6">Локально</span>
+        </div>
+        <div style="display:flex; gap:6px;">
+            <button id="themeToggleBtn" style="width:42px; margin:0; padding:6px;" title="Тема">🌓</button>
         </div>
     </div>
 
+    <!-- Навигация по разделам ВЫНЕСЕНА НАВЕРХ (не конфликтует с кнопками Android внизу экрана!) -->
+    <div class="nav-tabs">
+        <button type="button" class="tab-btn active" onclick="window.switchTab('tab-pos', this)">🛒 Касса / Предзаказ</button>
+        <button type="button" class="tab-btn" onclick="window.switchTab('tab-stock', this)">📦 Основной склад</button>
+        <button type="button" class="tab-btn" onclick="window.switchTab('tab-pack', this)">🫙 Склад тары</button>
+        <button type="button" class="tab-btn" onclick="window.switchTab('tab-reports', this)">📊 Отчёты / База</button>
+    </div>
+
+    <!-- Статистика -->
     <div class="stats">
-        <div class="stat-card">Выручка<br><strong id="totalRev">0</strong> р.</div>
-        <div class="stat-card">Прибыль<br><strong id="totalProf" style="color:var(--s)">0</strong> р.</div>
-        <div class="stat-card">Общий закуп<br><strong id="totalInStock">0</strong> р.</div>
-        <div class="stat-card">Рентабельность<br><strong id="profitability">0</strong>%</div>
+        <div class="stat-card">Выручка<strong id="totalRev">0 р.</strong></div>
+        <div class="stat-card">Чистая прибыль<strong id="totalProf" style="color:var(--s)">0 р.</strong></div>
+        <div class="stat-card">Запас товара<strong id="totalInStock">0 р.</strong></div>
+        <div class="stat-card">Запас тары<strong id="totalPackStock">0 р.</strong></div>
+        <div class="stat-card">Предзаказы<strong id="totalPreorders" style="color:var(--w)">0 шт</strong></div>
+        <div class="stat-card">Рентабельность<strong id="profitability">0%</strong></div>
     </div>
 
-    <!-- Табы навигации -->
-    <div style="max-width:1550px; margin:0 auto 10px auto;">
-        <div class="tab-btns">
-            <button class="tab-btn active" onclick="showTab('main')">📦 Склад и Касса</button>
-            <button class="tab-btn" onclick="showTab('crm')">👥 Клиенты</button>
-            <button class="tab-btn" onclick="showTab('history')">📊 История</button>
-            <button class="tab-btn" onclick="showTab('defects')">🗑️ Брак и Поставщики</button>
-        </div>
-    </div>
-
-    <!-- ТАБ: СКЛАД И КАССА -->
-    <div id="tab-main">
+    <!-- ==================== ВКЛАДКА 1: КАССА И ПРЕДЗАКАЗЫ ==================== -->
+    <div id="tab-pos" class="tab-section active">
         <div class="grid">
+            <!-- Блок кассы -->
             <div class="card">
-                <h2>📥 Склад (Приход)</h2>
-                <div class="form-row">
-                    <input type="text" id="bName" placeholder="Товар">
-                    <input type="number" id="bQty" placeholder="К-во" style="width:100px">
-                    <select id="bUnit" style="width:80px">
-                        <option value="кг">кг</option>
-                        <option value="шт">шт</option>
-                        <option value="банка">банка</option>
-                        <option value="пакет">пакет</option>
-                        <option value="лист">лист</option>
-                    </select>
+                <h2>
+                    <span>🛒 Набор заказа / Касса</span>
+                    <span id="editingPreorderBadge" class="badge" style="display:none; background:var(--w);">Редактирование предзаказа</span>
+                </h2>
+                <div class="form-row mobile-stack">
+                    <input type="text" id="invoiceClient" placeholder="Ресторан / Кафе (для накладной)">
+                    <input type="text" id="invoiceCustomer" placeholder="Имя клиента / Заказчик">
                 </div>
-                <input type="number" id="bPrice" placeholder="Сумма закупа">
-                <div class="form-row">
-                    <div style="flex:1"><input type="number" id="bEx1" placeholder="Тара" value="0"></div>
-                    <div style="flex:1"><input type="number" id="bEx2" placeholder="Доставка" value="0"></div>
-                </div>
-                <button id="toStockBtn">Принять на склад</button>
-                <h3>📦 Остатки</h3>
-                <table id="stockTable"><thead><tr><th>Товар</th><th>Запас</th><th>Закуп</th><th>Мин. остаток</th><th>Уд.</th></tr></thead><tbody></tbody></table>
-            </div>
 
-            <div class="card">
-                <h2>🛒 Касса (Продажа)</h2>
-                <!-- Клиент -->
-                <div style="background:rgba(52,152,219,0.08); border-radius:8px; padding:10px; margin-bottom:10px;">
-                    <div style="font-size:12px; color:#888; margin-bottom:6px;">👤 Клиент (необязательно)</div>
-                    <div class="form-row">
-                        <input type="text" id="clientName" placeholder="Имя клиента" style="margin-bottom:0">
-                        <input type="tel" id="clientPhone" placeholder="+7 999 000 00 00" style="margin-bottom:0">
-                    </div>
-                    <div style="font-size:11px; color:#aaa; margin-top:4px;">Можно заполнить только имя или только телефон</div>
-                </div>
-                <div class="form-row">
-                    <input type="text" id="invoiceClient" placeholder="Ресторан/кафе">
-                    <input type="text" id="invoiceCustomer" placeholder="Заказчик">
-                </div>
                 <select id="sProduct"></select>
                 <div class="form-row">
-                    <input type="number" id="sQty" placeholder="К-во">
-                    <input type="number" id="sPrice" placeholder="Цена">
+                    <input type="number" id="sQty" placeholder="Кол-во (вес/шт)" step="0.01">
+                    <input type="number" id="sPrice" placeholder="Цена за ед. (р)">
                 </div>
-                <div class="sale-type">
-                    <button id="addSaleBtn" style="background:#f39c12; flex:2">➕ Продажа</button>
-                    <button id="addGiftBtn" class="gift-btn">🎁 Подарок</button>
-                    <button id="addSelfBtn" class="self-btn">🏠 Для себя</button>
+
+                <!-- Блок комплектации тары из склада расходников -->
+                <div class="pack-box">
+                    <label>🫙 Упаковка / Тара (списывается со склада расходников):</label>
+                    <div class="form-row mobile-stack">
+                        <select id="sPackType">
+                            <option value="none">Без тары (на развес)</option>
+                            <option value="glass">Стеклобанка (+крышка +этикетка)</option>
+                            <option value="plastic">Пластиковая банка (+этикетка)</option>
+                            <option value="other">Прочая упаковка (пакет/пергамент)</option>
+                        </select>
+                        <select id="sPackVol" style="display:none;"></select>
+                        <input type="number" id="sPackQty" placeholder="Кол-во банок (шт)" value="1" min="1" style="display:none;">
+                    </div>
+                    <div id="packCostHint" style="font-size:11.5px; color:var(--p);">Себестоимость упаковки автоматически учтётся при продаже</div>
                 </div>
-                <div style="padding:15px; border:1px dashed #ccc; border-radius:8px">
-                    <table id="cartTable"><tbody></tbody></table>
-                    <h3 align="right">ИТОГО: <span id="cTotal">0</span> р.</h3>
-                    <div style="display:flex; gap:10px; flex-wrap:wrap">
-                        <button id="doInvoiceBtn" style="background:var(--s); flex:1">📄 Накладная PDF</button>
-                        <button id="doReceiptBtn" style="background:#9b59b6; flex:1">🧾 Чек PDF</button>
-                        <button id="doNoneBtn" style="background:#95a5a6; flex:1">✅ Без печати</button>
+
+                <div class="form-row" style="margin-bottom:8px;">
+                    <button type="button" id="addSaleBtn" style="background:var(--p); flex:1.5">➕ В корзину</button>
+                    <button type="button" id="addGiftBtn" style="background:#e84342; flex:1">🎁 Подарок</button>
+                    <button type="button" id="addSelfBtn" style="background:#7f8c8d; flex:1">🏠 Себе</button>
+                </div>
+
+                <div style="padding:10px; border:1px dashed var(--border); border-radius:8px">
+                    <div class="table-wrap">
+                        <table id="cartTable">
+                            <thead><tr><th>Товар и тара</th><th>Кол-во</th><th>Сумма</th><th>Уд.</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin:8px 0; flex-wrap:wrap; gap:6px;">
+                        <span style="font-size:13px;">Скидка (р): <input type="number" id="cartDiscount" value="0" style="width:85px; display:inline-block; padding:5px; margin:0;"></span>
+                        <h3 style="margin:0; border:none;">ИТОГО: <span id="cTotal">0</span> р.</h3>
+                    </div>
+
+                    <!-- Кнопка Предзаказа (без списания со склада) -->
+                    <button type="button" id="savePreorderBtn" style="background:var(--w); width:100%; margin-bottom:8px; padding:11px;">
+                        ⏳ В Предзаказ + Предварительный чек клиенту
+                    </button>
+
+                    <!-- Кнопки финального проведения продажи -->
+                    <div style="display:flex; gap:6px; flex-wrap:wrap">
+                        <button type="button" id="doInvoiceBtn" style="background:var(--s); flex:1">📄 Накладная</button>
+                        <button type="button" id="doReceiptBtn" style="background:#8e44ad; flex:1">🧾 Чек</button>
+                        <button type="button" id="doNoneBtn" style="background:#7f8c8d; flex:1">✅ Без чека</button>
                     </div>
                 </div>
             </div>
+
+            <!-- Блок активных предзаказов -->
+            <div class="card">
+                <h2>📋 Активные предзаказы</h2>
+                <p style="font-size:12px; margin-top:0; color:#7f8c8d;">
+                    Товар в предзаказе ещё не списан со склада. Отправьте предварительный чек в WhatsApp, измените состав или проведите продажу в 1 клик.
+                </p>
+                <div class="table-wrap">
+                    <table id="preordersTable">
+                        <thead>
+                            <tr>
+                                <th>№ / Дата</th>
+                                <th>Клиент</th>
+                                <th>Состав</th>
+                                <th>Сумма</th>
+                                <th>Действия</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- ТАБ: КЛИЕНТЫ (CRM) -->
-    <div id="tab-crm" style="display:none; max-width:1550px; margin:0 auto;">
+    <!-- ==================== ВКЛАДКА 2: ОСНОВНОЙ СКЛАД ==================== -->
+    <div id="tab-stock" class="tab-section">
+        <div class="grid">
+            <div class="card">
+                <h2>📥 Приход основного товара</h2>
+                <input type="text" id="bName" placeholder="Наименование продукта (Мясо, Колбаса, Мёд...)">
+                <div class="form-row">
+                    <input type="number" id="bQty" placeholder="Вес / К-во" step="0.01" style="flex:1.5">
+                    <select id="bUnit" style="flex:1">
+                        <option value="кг">кг</option>
+                        <option value="шт">шт</option>
+                        <option value="л">л</option>
+                    </select>
+                </div>
+                <input type="number" id="bPrice" placeholder="Сумма закупа партии (р)">
+                <div class="form-row">
+                    <input type="number" id="bEx1" placeholder="Транспорт / Доп. (р)" value="0">
+                    <input type="number" id="bEx2" placeholder="Доставка (р)" value="0">
+                </div>
+                <button type="button" id="toStockBtn">➕ Принять продукт на склад</button>
+            </div>
+
+            <div class="card">
+                <h2>📦 Остатки основного склада</h2>
+                <div class="table-wrap">
+                    <table id="stockTable">
+                        <thead>
+                            <tr>
+                                <th>Продукт</th>
+                                <th>Остаток</th>
+                                <th>Себест.</th>
+                                <th>Запас (р)</th>
+                                <th>Мин.</th>
+                                <th>Уд.</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== ВКЛАДКА 3: СКЛАД РАСХОДНИКОВ (ТАРЫ) ==================== -->
+    <div id="tab-pack" class="tab-section">
+        <div class="grid">
+            <div class="card">
+                <h2>🫙 Приход тары и расходников</h2>
+                <p style="font-size:12px; color:#7f8c8d; margin-top:0;">
+                    • <b>Стекло</b> списывает: Стеклобанку выбранного объёма + 1 Крышку + 1 Этикетку.<br>
+                    • <b>Пластик</b> списывает: Пластиковую банку выбранного объёма + 1 Этикетку.
+                </p>
+                <select id="pCategory">
+                    <option value="glass_jar">Стеклобанка (без крышки)</option>
+                    <option value="glass_lid">Крышка для стеклобанки</option>
+                    <option value="plastic_jar">Пластиковая банка (с крышкой)</option>
+                    <option value="label">Этикетка / Наклейка на банку</option>
+                    <option value="other_pack">Прочая упаковка (вакуум. пакет / пергамент)</option>
+                </select>
+                <div class="form-row mobile-stack">
+                    <input type="text" id="pVolume" placeholder="Объём банки (напр. 0.5 л, 0.25 л, 1 л)">
+                    <input type="text" id="pCustomName" placeholder="Уточнение (необязательно)">
+                </div>
+                <div class="form-row">
+                    <input type="number" id="pQty" placeholder="Кол-во (шт)">
+                    <input type="number" id="pTotalCost" placeholder="Сумма закупа (р)">
+                </div>
+                <button type="button" id="toPackStockBtn" style="background:var(--s)">➕ Принять тару на склад</button>
+            </div>
+
+            <div class="card">
+                <h2>📦 Остатки тары и этикеток</h2>
+                <div class="table-wrap">
+                    <table id="packTable">
+                        <thead>
+                            <tr>
+                                <th>Наименование</th>
+                                <th>Объём</th>
+                                <th>Остаток</th>
+                                <th>Цена 1 шт</th>
+                                <th>Мин.</th>
+                                <th>Уд.</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== ВКЛАДКА 4: ОТЧЁТЫ, ПОСТАВЩИКИ, БРАК ==================== -->
+    <div id="tab-reports" class="tab-section">
         <div class="card">
-            <h2>👥 База клиентов</h2>
-            <div class="form-row" style="margin-bottom:10px;">
-                <input type="text" id="crmSearch" placeholder="🔍 Поиск по имени или телефону" style="margin-bottom:0" oninput="renderCRM()">
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                <div style="flex:1; min-width:120px;"><label style="font-size:11px;">С:</label><input type="date" id="dateFrom" style="margin:0;"></div>
+                <div style="flex:1; min-width:120px;"><label style="font-size:11px;">По:</label><input type="date" id="dateTo" style="margin:0;"></div>
+                <div style="flex:1; min-width:130px;"><label style="font-size:11px;">Товар:</label><select id="filterProduct" style="margin:0;"><option value="">Все</option></select></div>
             </div>
-            <div style="font-size:13px; color:#888; margin-bottom:10px;">
-                Клиенты добавляются автоматически при оформлении продажи с именем или телефоном.
+            <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px;">
+                <button type="button" id="exportBtn" style="background:#27ae60; flex:1; margin:0;">📊 CSV</button>
+                <button type="button" id="backupBtn" style="background:#2980b9; flex:1; margin:0;">💾 Бэкап</button>
+                <button type="button" id="restoreBtn" style="background:#f39c12; flex:1; margin:0;">📂 Восст.</button>
             </div>
-            <div id="crmList"></div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h2>🏭 Расчёты с поставщиками</h2>
+                <div class="form-row mobile-stack">
+                    <input type="text" id="supName" placeholder="Поставщик">
+                    <select id="supProduct"></select>
+                </div>
+                <div class="form-row">
+                    <input type="number" id="supPayment" placeholder="Сумма оплаты (р)">
+                    <input type="text" id="supComment" placeholder="Комментарий">
+                </div>
+                <button type="button" id="addSupBtn" style="background:#27ae60;">➕ Записать оплату</button>
+                <div class="table-wrap">
+                    <table id="suppliersTable">
+                        <thead><tr><th>Поставщик</th><th>Товар</th><th>Себест.</th><th>Оплачено</th><th>Долг</th><th>Комм.</th><th>Уд.</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>🗑️ Списание брака</h2>
+                <select id="defectProduct"></select>
+                <div class="form-row">
+                    <input type="number" id="defectQty" placeholder="К-во" step="0.01">
+                    <input type="text" id="defectReason" placeholder="Причина">
+                </div>
+                <button type="button" id="addDefectBtn" style="background:#e74c3c;">Списать брак</button>
+                <div style="display:flex; gap:8px; margin:8px 0;">
+                    <div class="stat-card" style="flex:1; padding:6px;">Случаев: <strong id="defectCount">0</strong></div>
+                    <div class="stat-card" style="flex:1; padding:6px;">Убыток: <strong id="defectLoss">0 р.</strong></div>
+                </div>
+                <div class="table-wrap">
+                    <table id="defectTable">
+                        <thead><tr><th>Дата</th><th>Товар</th><th>Кол-во</th><th>Убыток</th><th>Причина</th><th>Уд.</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <h2>📊 История продаж</h2>
+                <div class="table-wrap">
+                    <table id="hTable">
+                        <thead><tr><th>Дата</th><th>Детали</th><th>Сумма</th><th>Прибыль</th><th>Чек</th><th>Уд.</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card">
+                <h2>📦 История закупов</h2>
+                <div class="table-wrap">
+                    <table id="buyHistoryTable">
+                        <thead><tr><th>Дата</th><th>Наименование</th><th>К-во</th><th>Сумма</th><th>За ед.</th><th>Уд.</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
-    <!-- ТАБ: ИСТОРИЯ -->
-    <div id="tab-history" style="display:none; max-width:1550px; margin:0 auto;">
-        <div class="card" style="margin-bottom:20px;">
-            <div style="display:flex; gap:20px; flex-wrap:wrap; align-items:center;">
-                <div><label>С:</label><input type="date" id="dateFrom"></div>
-                <div><label>По:</label><input type="date" id="dateTo"></div>
-                <div><label>Товар:</label><select id="filterProduct"><option value="">Все</option></select></div>
-                <button id="exportBtn" style="background:#27ae60; width:auto">📊 Excel</button>
-                <button id="backupBtn" style="background:#3498db; width:auto">💾 Бэкап</button>
-                <button id="restoreBtn" style="background:#f39c12; width:auto">📂 Восст.</button>
-            </div>
-        </div>
-        <div class="card"><h2>📦 История закупов</h2><table id="buyHistoryTable"><thead><tr><th>Дата</th><th>Товар</th><th>К-во</th><th>Сумма</th><th>За ед.</th><th>Уд.</th></tr></thead><tbody></tbody></table></div>
-        <div class="card"><h2>📊 История продаж</h2><table id="hTable"><thead><tr><th>Дата</th><th>Клиент</th><th>Детали</th><th>Сумма</th><th>Прибыль</th><th>Тип</th><th>Уд.</th></tr></thead><tbody></tbody></table></div>
-    </div>
-
-    <!-- ТАБ: БРАК И ПОСТАВЩИКИ -->
-    <div id="tab-defects" style="display:none; max-width:1550px; margin:0 auto;">
-        <div class="card">
-            <h2>🏭 Поставщики</h2>
-            <div style="display:flex; gap:20px; flex-wrap:wrap;">
-                <input type="text" id="supName" placeholder="Поставщик" style="flex:1">
-                <select id="supProduct" style="flex:1"></select>
-                <input type="number" id="supPayment" placeholder="Сумма" style="flex:1">
-                <input type="text" id="supComment" placeholder="Коммент" style="flex:1">
-                <button id="addSupBtn" style="background:#27ae60; width:auto">➕ Оплата</button>
-            </div>
-            <table id="suppliersTable"><thead><tr><th>Поставщик</th><th>Товар</th><th>Себестоимость</th><th>Оплачено</th><th>Долг</th><th>Действия</th></tr></thead><tbody></tbody></table>
-        </div>
-        <div class="card">
-            <h2>🗑️ Брак</h2>
-            <div style="display:flex; gap:20px; flex-wrap:wrap;">
-                <select id="defectProduct" style="flex:2"></select>
-                <input type="number" id="defectQty" placeholder="К-во" style="flex:1">
-                <input type="text" id="defectReason" placeholder="Причина" style="flex:2">
-                <button id="addDefectBtn" style="background:#e74c3c; width:auto">Списать</button>
-            </div>
-            <div style="display:flex; gap:15px; margin:15px 0">
-                <div class="stat-card" style="flex:1">Брак: <strong id="defectCount">0</strong></div>
-                <div class="stat-card" style="flex:1">Убыток: <strong id="defectLoss">0 р</strong></div>
-            </div>
-            <table id="defectTable"><thead><tr><th>Дата</th><th>Товар</th><th>Кол-во</th><th>Убыток</th><th>Причина</th><th>Уд.</th></tr></thead><tbody></tbody></table>
-        </div>
-    </div>
-
+    <!-- Зона для системной печати -->
     <div id="print-zone"></div>
 
-    <!-- Модальное окно клиента CRM -->
-    <div id="clientModal" class="modal">
+    <!-- Модальное окно предпросмотра Чека / Накладной с отправкой в WhatsApp -->
+    <div id="docModal" class="modal">
         <div class="modal-content">
-            <h3 id="clientModalName">Клиент</h3>
-            <div id="clientModalInfo"></div>
-            <button onclick="document.getElementById('clientModal').style.display='none'" style="background:#e74c3c; margin-top:10px;">Закрыть</button>
+            <h3 style="margin-top:0;">📄 Готовый документ</h3>
+            <div id="docPreviewWrap"></div>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                <button type="button" id="shareWhatsappBtn" style="background:#25D366; flex:1.5;">📲 Отправить в WhatsApp</button>
+                <button type="button" id="downloadImgBtn" style="background:var(--p); flex:1;">💾 Скачать</button>
+                <button type="button" id="printDocBtn" style="background:#7f8c8d; flex:1;">🖨️ Печать</button>
+            </div>
+            <button type="button" id="closeDocModalBtn" style="background:#e74c3c; margin-top:6px;">Закрыть окно</button>
         </div>
     </div>
 
+    <!-- Модальное окно пароля -->
     <div id="passwordModal" class="modal" style="display:flex;">
-        <div class="modal-content">
-            <h3>🔐 Введите пароль</h3>
-            <input type="password" id="passwordInput" placeholder="Пароль">
-            <button id="loginBtn">Войти</button>
+        <div class="modal-content" style="max-width:330px; text-align:center;">
+            <h3>🔐 Вход в «Асаля»</h3>
+            <input type="password" id="passwordInput" placeholder="Введите пароль">
+            <button type="button" id="loginBtn">Войти</button>
         </div>
     </div>
 
+    <!-- ЕДИНЫЙ УНИВЕРСАЛЬНЫЙ СКРИПТ (БЕЗ type="module", ЧТОБЫ РАБОТАЛО В WEBINTOAPP APK И НА ЛЮБОМ ANDROID!) -->
     <script>
-        // Навигация по табам
-        function showTab(name) {
-            ['main','crm','history','defects'].forEach(t => {
-                document.getElementById('tab-' + t).style.display = t === name ? '' : 'none';
-            });
-            document.querySelectorAll('.tab-btn').forEach((b, i) => {
-                b.classList.toggle('active', ['main','crm','history','defects'][i] === name);
-            });
-            if (name === 'crm') renderCRM();
-        }
+        // Блокировка жестов масштабирования (pinch-to-zoom и двойного тапа) на Android WebView
+        document.addEventListener('gesturestart', function(e) { e.preventDefault(); });
+        document.addEventListener('touchmove', function(e) {
+            if (e.touches && e.touches.length > 1) { e.preventDefault(); }
+        }, { passive: false });
 
+        // Переключение вкладок
+        window.switchTab = function(tabId, btnEl) {
+            document.querySelectorAll('.tab-btn').forEach(function(b) { b.classList.remove('active'); });
+            document.querySelectorAll('.tab-section').forEach(function(s) { s.classList.remove('active'); });
+            if (btnEl) btnEl.classList.add('active');
+            var target = document.getElementById(tabId);
+            if (target) target.classList.add('active');
+            window.scrollTo(0, 0);
+        };
+
+        // Уведомления
+        function _notify(msg, type) {
+            var n = document.createElement('div');
+            n.className = 'notification';
+            n.style.background = (type === 'error') ? '#e74c3c' : (type === 'warn' ? '#f39c12' : '#27ae60');
+            n.textContent = msg;
+            document.body.appendChild(n);
+            setTimeout(function() { n.remove(); }, 2400);
+        }
+        window._notify = _notify;
+
+        // Проверка пароля
         function checkPassword() {
             var input = document.getElementById('passwordInput').value;
             if (input === "120597") {
-                window.isAuthenticated = true;
                 document.getElementById('passwordModal').style.display = 'none';
-                _notify('Добро пожаловать!', 'success');
-                document.dispatchEvent(new CustomEvent('asala-auth'));
+                try { sessionStorage.setItem('asala_auth', '1'); } catch(e) {}
+                _notify('Добро пожаловать в Асаля!', 'success');
             } else {
                 _notify('Неверный пароль', 'error');
                 document.getElementById('passwordInput').value = '';
                 document.getElementById('passwordInput').focus();
             }
         }
-        function _notify(msg, type) {
-            var n = document.createElement('div');
-            n.className = 'notification';
-            n.style.background = (type === 'success') ? '#2ecc71' : (type === 'error' ? '#e74c3c' : '#3498db');
-            n.textContent = msg;
-            document.body.appendChild(n);
-            setTimeout(function(){ n.remove(); }, 2500);
-        }
-        window._notify = _notify;
-        document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('loginBtn').addEventListener('click', checkPassword);
-            document.getElementById('passwordInput').addEventListener('keydown', function(e) {
-                if (e.key === 'Enter') checkPassword();
-            });
-        });
-    </script>
 
-    <script type="importmap">
-        {
-            "imports": {
-                "firebase/app": "https://www.gstatic.com/firebasejs/10.12.5/firebase-app.js",
-                "firebase/database": "https://www.gstatic.com/firebasejs/10.12.5/firebase-database.js",
-                "firebase/auth": "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js"
-            }
-        }
-    </script>
+        // Глобальные массивы данных
+        window.stock = [];          // Основной склад продуктов
+        window.consumables = [];    // Склад расходников (банки стекло/пластик, крышки, этикетки)
+        window.preorders = [];      // Предзаказы
+        window.salesHistory = [];   // История продаж
+        window.buyHistory = [];     // История закупов
+        window.suppliers = [];      // Поставщики
+        window.defects = [];        // Брак
+        window.cart = [];           // Корзина кассы
+        window.docCounter = 48;     // Сквозной счётчик документов
+        window.editingPreorderId = null;
 
-    <script type="module">
-        import { initializeApp } from 'firebase/app';
-        import { getDatabase, ref, onValue, runTransaction, goOnline } from 'firebase/database';
-        import { getAuth, signInAnonymously } from 'firebase/auth';
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyCDrxoOUOJ_FPUExcrSkGKoMxXJLnGxjHE",
-            authDomain: "asala-warehous.firebaseapp.com",
-            databaseURL: "https://asala-warehous-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "asala-warehous",
-            storageBucket: "asala-warehous.firebasestorage.app",
-            messagingSenderId: "998650488579",
-            appId: "1:998650488579:web:93a343ab292f07bfc56b36"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const database = getDatabase(app);
-        const dbRef = ref(database, "asala/v82/shared");
-
-        window.stock = [];
-        window.salesHistory = [];
-        window.buyHistory = [];
-        window.suppliers = [];
-        window.defects = [];
-        window.cart = [];
-        window.clients = []; // CRM
-        window.isAuthenticated = false;
-        let syncInitialized = false;
-        window.CLIENT_ID = localStorage.getItem('asala_client_id') || ("client_" + Math.random().toString(36).slice(2));
-        localStorage.setItem('asala_client_id', window.CLIENT_ID);
+        window.CLIENT_ID = "client_" + Math.random().toString(36).slice(2);
         window.isApplyingRemote = false;
         window.syncStatus = "local";
+        var dbRef = null;
 
-        window.requireAuth = function() {
-            if (!window.isAuthenticated) {
-                window._notify('Войдите в систему', 'error');
-                document.getElementById('passwordModal').style.display = 'flex';
-                return false;
-            }
-            return true;
-        };
-
-        function ts(iso) {
-            if (!iso) return 0;
-            var t = new Date(iso).getTime();
-            return isNaN(t) ? 0 : t;
-        }
-        function getLocalUpdatedAt() { return localStorage.getItem('asala_updatedAt') || ''; }
-        function setLocalUpdatedAt(iso) { if (iso) localStorage.setItem('asala_updatedAt', iso); }
-        function hasLocalData() {
-            return window.stock.length || window.salesHistory.length || window.buyHistory.length;
-        }
-
-        function applyRemoteData(data, silent) {
-            if (!data) return;
-            var remoteTs = ts(data.updatedAt);
-            var localTs = ts(getLocalUpdatedAt());
-            if (remoteTs < localTs) return;
-            if (remoteTs === localTs && data.lastWriterId === window.CLIENT_ID) return;
-            window.isApplyingRemote = true;
-            window.stock = data.stock || [];
-            window.salesHistory = data.history || [];
-            window.buyHistory = data.buyHistory || [];
-            window.suppliers = data.suppliers || [];
-            window.defects = data.defects || [];
-            window.clients = data.clients || [];
-            setLocalUpdatedAt(data.updatedAt);
-            writeLocalData();
-            if (window.render) window.render();
-            window.isApplyingRemote = false;
-            window.syncStatus = "online";
-            updateSyncBadge();
-            if (!silent) window._notify("🔄 Синхронизировано");
+        function esc(str) {
+            if (str === null || str === undefined) return '';
+            return String(str).replace(/[&<>"']/g, function(m) {
+                return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m];
+            });
         }
 
         function loadLocalData() {
-            window.stock = JSON.parse(localStorage.getItem('asala_stk')) || [];
-            window.salesHistory = JSON.parse(localStorage.getItem('asala_his')) || [];
-            window.buyHistory = JSON.parse(localStorage.getItem('asala_buy')) || [];
-            window.suppliers = JSON.parse(localStorage.getItem('asala_sup')) || [];
-            window.defects = JSON.parse(localStorage.getItem('asala_def')) || [];
-            window.clients = JSON.parse(localStorage.getItem('asala_cli')) || [];
+            try {
+                window.stock = JSON.parse(localStorage.getItem('asala_stk')) || [];
+                window.consumables = JSON.parse(localStorage.getItem('asala_cons')) || [];
+                window.preorders = JSON.parse(localStorage.getItem('asala_pre')) || [];
+                window.salesHistory = JSON.parse(localStorage.getItem('asala_his')) || [];
+                window.buyHistory = JSON.parse(localStorage.getItem('asala_buy')) || [];
+                window.suppliers = JSON.parse(localStorage.getItem('asala_sup')) || [];
+                window.defects = JSON.parse(localStorage.getItem('asala_def')) || [];
+                window.docCounter = parseInt(localStorage.getItem('asala_doc_cnt')) || 48;
+            } catch (e) { console.error(e); }
         }
 
         function writeLocalData() {
-            localStorage.setItem('asala_stk', JSON.stringify(window.stock));
-            localStorage.setItem('asala_his', JSON.stringify(window.salesHistory));
-            localStorage.setItem('asala_buy', JSON.stringify(window.buyHistory));
-            localStorage.setItem('asala_sup', JSON.stringify(window.suppliers));
-            localStorage.setItem('asala_def', JSON.stringify(window.defects));
-            localStorage.setItem('asala_cli', JSON.stringify(window.clients));
-            localStorage.setItem('asala_lastSaved', new Date().toISOString());
+            try {
+                localStorage.setItem('asala_stk', JSON.stringify(window.stock));
+                localStorage.setItem('asala_cons', JSON.stringify(window.consumables));
+                localStorage.setItem('asala_pre', JSON.stringify(window.preorders));
+                localStorage.setItem('asala_his', JSON.stringify(window.salesHistory));
+                localStorage.setItem('asala_buy', JSON.stringify(window.buyHistory));
+                localStorage.setItem('asala_sup', JSON.stringify(window.suppliers));
+                localStorage.setItem('asala_def', JSON.stringify(window.defects));
+                localStorage.setItem('asala_doc_cnt', String(window.docCounter));
+                localStorage.setItem('asala_lastSaved', new Date().toISOString());
+            } catch (e) { console.error(e); }
         }
 
         function updateSyncBadge() {
-            const badge = document.getElementById('syncStatus');
+            var badge = document.getElementById('syncStatus');
             if (!badge) return;
-            const map = { local: "📁 Локально", connecting: "🔄 Синхр...", online: "☁️ Онлайн", offline: "📴 Офлайн" };
-            badge.textContent = "Статус: " + (map[window.syncStatus] || window.syncStatus);
+            var map = { local: "📁 Локально", connecting: "🔄 Синхр...", online: "☁️ Онлайн", offline: "📴 Офлайн" };
+            badge.textContent = map[window.syncStatus] || window.syncStatus;
             badge.style.background = window.syncStatus === "online" ? "#27ae60" : window.syncStatus === "connecting" ? "#f39c12" : "#95a5a6";
         }
 
-        function buildPayload(updatedAt) {
-            return {
+        function scheduleSave() {
+            writeLocalData();
+            if (window.render) window.render();
+            if (window.isApplyingRemote || !dbRef) return;
+
+            var payload = {
                 stock: window.stock,
+                consumables: window.consumables,
+                preorders: window.preorders,
                 history: window.salesHistory,
                 buyHistory: window.buyHistory,
                 suppliers: window.suppliers,
                 defects: window.defects,
-                clients: window.clients,
-                updatedAt,
+                docCounter: window.docCounter,
+                updatedAt: new Date().toISOString(),
                 lastWriterId: window.CLIENT_ID
             };
-        }
 
-        async function scheduleSave() {
-            if (!window.isAuthenticated) return;
-            var updatedAt = new Date().toISOString();
-            setLocalUpdatedAt(updatedAt);
-            writeLocalData();
-            if (window.render) window.render();
-            if (window.isApplyingRemote) return;
-            var payload = buildPayload(updatedAt);
-            try {
-                var result = await runTransaction(dbRef, function(current) {
-                    if (!current) return payload;
-                    var remoteTs = ts(current.updatedAt);
-                    var localTs = ts(updatedAt);
-                    if (current.lastWriterId !== window.CLIENT_ID && remoteTs > localTs) return;
-                    return payload;
-                });
-                if (result.committed) {
-                    window.syncStatus = "online";
-                } else if (result.snapshot && result.snapshot.exists()) {
-                    applyRemoteData(result.snapshot.val(), true);
-                }
+            dbRef.set(payload).then(function() {
+                window.syncStatus = "online";
                 updateSyncBadge();
-            } catch (err) {
+            }).catch(function(err) {
                 console.error("Sync error:", err);
                 window.syncStatus = "offline";
                 updateSyncBadge();
-            }
+            });
         }
 
-        async function initSync() {
-            if (syncInitialized) return;
-            syncInitialized = true;
+        function initFirebaseSync() {
             loadLocalData();
             if (window.render) window.render();
-            updateSyncBadge();
-            window.syncStatus = "connecting";
-            updateSyncBadge();
 
-            if (location.protocol === 'file:') {
-                window.syncStatus = 'local';
-                updateSyncBadge();
-                window._notify('Локальный режим. Облако только через https-сайт.', 'error');
-                return;
-            }
-            try {
-                await signInAnonymously(getAuth(app));
-            } catch (authErr) {
-                console.error("Auth error:", authErr);
-                window._notify('Auth не удался: ' + (authErr.message || 'ошибка'), 'error');
-            }
-            goOnline(database);
-            onValue(dbRef, function(snapshot) {
-                var data = snapshot.val();
-                if (!data) { if (hasLocalData()) scheduleSave(); return; }
-                if (data.lastWriterId === window.CLIENT_ID) {
-                    if (data.updatedAt) setLocalUpdatedAt(data.updatedAt);
-                    window.syncStatus = "online";
-                    updateSyncBadge();
-                    return;
-                }
-                applyRemoteData(data, false);
-            }, function(err) {
-                console.error("Firebase error:", err);
+            if (typeof firebase === 'undefined') {
                 window.syncStatus = "offline";
                 updateSyncBadge();
-            });
-        }
-
-        // ===== ТЕМА =====
-        window.toggleTheme = function() {
-            document.body.classList.toggle('dark-theme');
-            localStorage.setItem('asala_theme', document.body.classList.contains('dark-theme') ? 'dark' : 'light');
-        };
-        if (localStorage.getItem('asala_theme') === 'dark') document.body.classList.add('dark-theme');
-
-        // ===== CRM: работа с клиентами =====
-        function findOrCreateClient(name, phone) {
-            if (!name && !phone) return null;
-            let key = (phone || '') + '|' + (name || '');
-            let client = window.clients.find(c => {
-                if (phone && c.phone === phone) return true;
-                if (!phone && name && c.name === name) return true;
-                return false;
-            });
-            if (!client) {
-                client = { id: Date.now().toString(), name: name || '', phone: phone || '', orders: [], createdAt: new Date().toISOString() };
-                window.clients.push(client);
-            }
-            return client;
-        }
-
-        window.renderCRM = function() {
-            const list = document.getElementById('crmList');
-            if (!list) return;
-            const search = (document.getElementById('crmSearch') ? document.getElementById('crmSearch').value : '').toLowerCase();
-            let filtered = window.clients.filter(c => {
-                if (!search) return true;
-                return (c.name && c.name.toLowerCase().includes(search)) || (c.phone && c.phone.includes(search));
-            });
-            if (filtered.length === 0) {
-                list.innerHTML = '<div style="text-align:center; color:#888; padding:30px;">Клиентов пока нет.<br>Они появятся после первой продажи с указанием имени или телефона.</div>';
                 return;
             }
-            list.innerHTML = '';
-            filtered.slice().reverse().forEach(client => {
-                const totalSum = (client.orders || []).reduce((s, o) => s + (o.sum || 0), 0);
-                const lastOrder = (client.orders || []).length > 0 ? client.orders[client.orders.length - 1].date : '—';
-                const waLink = client.phone ? `<a href="https://wa.me/${client.phone.replace(/\D/g,'')}" target="_blank" class="wa-btn">💬 WhatsApp</a>` : '';
-                const div = document.createElement('div');
-                div.className = 'client-card';
-                div.innerHTML = `
-                    <div style="display:flex; justify-content:space-between; align-items:start;">
-                        <div>
-                            <div class="client-name">${client.name || '—'} ${waLink}</div>
-                            <div class="client-meta">📞 ${client.phone || '—'} &nbsp;|&nbsp; Заказов: ${(client.orders||[]).length} &nbsp;|&nbsp; Сумма: ${totalSum.toFixed(0)}р &nbsp;|&nbsp; Последний: ${lastOrder}</div>
-                        </div>
-                        <button onclick="event.stopPropagation(); toggleClientOrders('orders_${client.id}')" style="width:auto; padding:4px 10px; font-size:12px;">📋 История</button>
-                    </div>
-                    <div id="orders_${client.id}" class="client-orders">
-                        ${(client.orders || []).length === 0 ? '<div style="color:#888; font-size:12px;">Нет заказов</div>' :
-                            (client.orders || []).slice().reverse().map(o => `
-                                <div class="order-row">📅 ${o.date} &nbsp; ${o.details} &nbsp; <strong>${(o.sum||0).toFixed(0)}р</strong></div>
-                            `).join('')
-                        }
-                    </div>
-                `;
-                list.appendChild(div);
-            });
-        };
 
-        window.toggleClientOrders = function(id) {
-            const el = document.getElementById(id);
-            if (el) el.classList.toggle('open');
-        };
-
-        // ===== PDF генерация =====
-        window.generatePDF = function(mode, cartItems, total, clientInfo, docInfo) {
-            if (typeof window.jspdf === 'undefined' && typeof jspdf === 'undefined') {
-                window._notify('PDF библиотека загружается, попробуйте ещё раз', 'error');
-                return;
-            }
-            const { jsPDF } = window.jspdf || jspdf;
-
-            // Транслитерация кириллицы
-            function cyr(str) {
-                if (!str) return '';
-                const map = {
-                    'а':'a','б':'b','в':'v','г':'g','д':'d','е':'e','ё':'yo','ж':'zh','з':'z','и':'i','й':'j',
-                    'к':'k','л':'l','м':'m','н':'n','о':'o','п':'p','р':'r','с':'s','т':'t','у':'u','ф':'f',
-                    'х':'kh','ц':'ts','ч':'ch','ш':'sh','щ':'shch','ъ':'','ы':'y','ь':'','э':'e','ю':'yu','я':'ya',
-                    'А':'A','Б':'B','В':'V','Г':'G','Д':'D','Е':'E','Ё':'Yo','Ж':'Zh','З':'Z','И':'I','Й':'J',
-                    'К':'K','Л':'L','М':'M','Н':'N','О':'O','П':'P','Р':'R','С':'S','Т':'T','У':'U','Ф':'F',
-                    'Х':'Kh','Ц':'Ts','Ч':'Ch','Ш':'Sh','Щ':'Shch','Ъ':'','Ы':'Y','Ь':'','Э':'E','Ю':'Yu','Я':'Ya'
+            try {
+                var firebaseConfig = {
+                    apiKey: "AIzaSyCDrxoOUOJ_FPUExcrSkGKoMxXJLnGxjHE",
+                    authDomain: "asala-warehous.firebaseapp.com",
+                    databaseURL: "https://asala-warehous-default-rtdb.europe-west1.firebasedatabase.app",
+                    projectId: "asala-warehous",
+                    storageBucket: "asala-warehous.firebasestorage.app",
+                    messagingSenderId: "998650488579",
+                    appId: "1:998650488579:web:93a343ab292f07bfc56b36"
                 };
-                return str.split('').map(c => map[c] !== undefined ? map[c] : c).join('');
-            }
 
-            // Цвета бренда
-            const BLUE  = [52, 152, 219];
-            const DARK  = [30, 40, 55];
-            const GRAY  = [120, 130, 145];
-            const LGRAY = [235, 238, 242];
-            const WHITE = [255, 255, 255];
-            const GREEN = [39, 174, 96];
-
-            // ─── ЧЕК (термо-лента, формат 80мм) ──────────────────────────────
-            if (mode === 'receipt') {
-                const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: [80, 200] });
-                const W = doc.internal.pageSize.getWidth();
-                let y = 0;
-
-                // Шапка — синяя полоса
-                doc.setFillColor(...BLUE);
-                doc.rect(0, 0, W, 22, 'F');
-
-                // Рисуем "Асаля" через canvas (кириллица)
-                const canvasR = document.createElement('canvas');
-                canvasR.width = 340; canvasR.height = 60;
-                const ctxR = canvasR.getContext('2d');
-                ctxR.clearRect(0,0,340,60);
-                ctxR.fillStyle = '#ffffff';
-                ctxR.font = 'bold 48px Arial';
-                ctxR.textAlign = 'center';
-                ctxR.fillText('Асаля', 170, 50);
-                doc.addImage(canvasR.toDataURL('image/png'), 'PNG', W/2-24, 1, 48, 13);
-
-                doc.setTextColor(...WHITE);
-                doc.setFont('helvetica', 'normal');
-                doc.setFontSize(7);
-                doc.text('Fresh & Natural', W/2, 19, {align:'center'});
-                y = 26;
-
-                // Дата и тип документа
-                const now = new Date();
-                const dateStr = now.toLocaleDateString('ru-RU') + '  ' + now.toLocaleTimeString('ru-RU', {hour:'2-digit',minute:'2-digit'});
-                doc.setTextColor(...DARK);
-                doc.setFontSize(7.5);
-                doc.setFont('helvetica', 'normal');
-                doc.text(dateStr, W/2, y, {align:'center'});
-                y += 5;
-
-                doc.setFontSize(10);
-                doc.setFont('helvetica', 'bold');
-                doc.setTextColor(...BLUE);
-                doc.text('CHEK / RECEIPT', W/2, y, {align:'center'});
-                y += 3;
-
-                // Тонкая линия
-                doc.setDrawColor(...BLUE);
-                doc.setLineWidth(0.4);
-                doc.line(5, y, W-5, y);
-                y += 4;
-
-                // Клиент
-                if (clientInfo.name || clientInfo.phone) {
-                    doc.setFontSize(7.5);
-                    doc.setFont('helvetica', 'normal');
-                    doc.setTextColor(...GRAY);
-                    if (clientInfo.name) { doc.text('Pokupatel: ' + cyr(clientInfo.name), 5, y); y += 4; }
-                    if (clientInfo.phone) { doc.text('Tel: ' + clientInfo.phone, 5, y); y += 4; }
-                    y += 1;
+                if (!firebase.apps.length) {
+                    firebase.initializeApp(firebaseConfig);
                 }
+                var database = firebase.database();
+                dbRef = database.ref("asala/v80/shared");
 
-                // Заголовок таблицы
-                doc.setFillColor(...LGRAY);
-                doc.rect(5, y-3, W-10, 6, 'F');
-                doc.setFontSize(7);
-                doc.setFont('helvetica', 'bold');
-                doc.setTextColor(...DARK);
-                doc.text('Tovar', 6, y+0.5);
-                doc.text('Kol', 46, y+0.5, {align:'right'});
-                doc.text('Cena', 60, y+0.5, {align:'right'});
-                doc.text('Sum', W-6, y+0.5, {align:'right'});
-                y += 5;
+                window.syncStatus = "connecting";
+                updateSyncBadge();
 
-                // Товары
-                doc.setFont('helvetica', 'normal');
-                doc.setFontSize(7.5);
-                let rowBg = false;
-                cartItems.forEach((item, idx) => {
-                    if (rowBg) {
-                        doc.setFillColor(245,248,252);
-                        doc.rect(5, y-3.2, W-10, 5.5, 'F');
-                    }
-                    rowBg = !rowBg;
-                    const tag = item.type==='gift'?' [gift]':item.type==='self'?' [self]':'';
-                    doc.setTextColor(...DARK);
-                    doc.text(cyr(item.name).substring(0,18) + cyr(tag), 6, y);
-                    doc.text(item.qty + cyr(item.unit), 46, y, {align:'right'});
-                    doc.text((item.price||0) + 'r', 60, y, {align:'right'});
-                    doc.setFont('helvetica', 'bold');
-                    doc.text(item.total + 'r', W-6, y, {align:'right'});
-                    doc.setFont('helvetica', 'normal');
-                    y += 5.5;
-                    if (y > 185) { doc.addPage(); y = 10; }
-                });
-
-                // Итог
-                y += 1;
-                doc.setDrawColor(...BLUE);
-                doc.setLineWidth(0.5);
-                doc.line(5, y, W-5, y);
-                y += 2;
-
-                doc.setFillColor(...BLUE);
-                doc.roundedRect(5, y, W-10, 10, 2, 2, 'F');
-                doc.setTextColor(...WHITE);
-                doc.setFont('helvetica', 'bold');
-                doc.setFontSize(11);
-                doc.text('ITOGO: ' + total + ' r', W/2, y+6.5, {align:'center'});
-                y += 14;
-
-                // Реквизиты
-                doc.setTextColor(...GRAY);
-                doc.setFontSize(7);
-                doc.setFont('helvetica', 'normal');
-                doc.text('T-Bank: +7 928 829 79 71', W/2, y, {align:'center'});
-                y += 4;
-                doc.text('(Shakhrzad)', W/2, y, {align:'center'});
-                y += 5;
-
-                // Нижняя пунктирная линия
-                doc.setDrawColor(...LGRAY);
-                doc.setLineWidth(0.3);
-                for (let x = 5; x < W-5; x += 3) {
-                    doc.line(x, y, x+1.5, y);
-                }
-                y += 4;
-                doc.setTextColor(...LGRAY);
-                doc.setFontSize(6.5);
-                doc.text('Spasibo za pokupku! / Thank you!', W/2, y, {align:'center'});
-
-                return doc;
-            }
-
-            // ─── НАКЛАДНАЯ (A5) ───────────────────────────────────────────────
-            const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a5' });
-            const W = doc.internal.pageSize.getWidth();
-            let y = 0;
-
-            // Шапка — синий прямоугольник на весь верх
-            doc.setFillColor(...BLUE);
-            doc.rect(0, 0, W, 28, 'F');
-
-            // Логотип / название — "Асаля" через canvas (кириллица)
-            const canvasI = document.createElement('canvas');
-            canvasI.width = 400; canvasI.height = 70;
-            const ctxI = canvasI.getContext('2d');
-            ctxI.clearRect(0,0,400,70);
-            ctxI.fillStyle = '#ffffff';
-            ctxI.font = 'bold 56px Arial';
-            ctxI.textAlign = 'left';
-            ctxI.fillText('Асаля', 0, 56);
-            doc.addImage(canvasI.toDataURL('image/png'), 'PNG', 10, 4, 52, 14);
-
-            doc.setTextColor(...WHITE);
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'normal');
-            doc.text('Fresh & Natural', 12, 22);
-
-            // Правая часть шапки — тип документа
-            doc.setFontSize(13);
-            doc.setFont('helvetica', 'bold');
-            doc.text('NAKLADNAYA', W-12, 13, {align:'right'});
-            doc.setFontSize(8);
-            doc.setFont('helvetica', 'normal');
-            const now2 = new Date();
-            const invoiceNum = 'No ' + now2.getFullYear() + String(now2.getMonth()+1).padStart(2,'0') + String(now2.getDate()).padStart(2,'0') + '-' + String(now2.getHours()).padStart(2,'0') + String(now2.getMinutes()).padStart(2,'0');
-            doc.text(invoiceNum, W-12, 20, {align:'right'});
-            doc.text(now2.toLocaleDateString('ru-RU'), W-12, 26, {align:'right'});
-
-            y = 33;
-
-            // Блок: От кого / Кому (две колонки)
-            const colW = (W - 24) / 2;
-
-            // Карточка "От"
-            doc.setFillColor(...LGRAY);
-            doc.roundedRect(10, y, colW, 22, 2, 2, 'F');
-            doc.setTextColor(...BLUE);
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(7.5);
-            doc.text('OT / FROM:', 13, y+6);
-            doc.setTextColor(...DARK);
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(9);
-            doc.text('ASALYA', 13, y+12);
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7.5);
-            doc.setTextColor(...GRAY);
-            doc.text('+7 928 829 79 71', 13, y+17);
-            doc.text('T-Bank: Shakhrzad', 13, y+21);
-
-            // Карточка "Кому"
-            const col2x = 14 + colW;
-            doc.setFillColor(...LGRAY);
-            doc.roundedRect(col2x, y, colW, 22, 2, 2, 'F');
-            doc.setTextColor(...BLUE);
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(7.5);
-            doc.text('KOMU / TO:', col2x+3, y+6);
-            doc.setTextColor(...DARK);
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(9);
-            doc.text(cyr(docInfo.client || '—').substring(0, 22), col2x+3, y+12);
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7.5);
-            doc.setTextColor(...GRAY);
-            if (docInfo.customer) doc.text(cyr(docInfo.customer).substring(0, 25), col2x+3, y+17);
-            if (clientInfo.phone) doc.text(clientInfo.phone, col2x+3, y+21);
-
-            y += 27;
-
-            // Таблица товаров — заголовок
-            doc.setFillColor(...BLUE);
-            doc.rect(10, y, W-20, 7, 'F');
-            doc.setTextColor(...WHITE);
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(8);
-            doc.text('No', 12, y+4.5);
-            doc.text('Nazvanie tovara', 20, y+4.5);
-            doc.text('Kol-vo', 108, y+4.5, {align:'right'});
-            doc.text('Cena', 128, y+4.5, {align:'right'});
-            doc.text('Summa', W-12, y+4.5, {align:'right'});
-            y += 7;
-
-            // Строки товаров
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(8.5);
-            let rowAlt = false;
-            cartItems.forEach((item, idx) => {
-                const rowH = 7;
-                if (rowAlt) {
-                    doc.setFillColor(245, 248, 252);
-                    doc.rect(10, y, W-20, rowH, 'F');
-                }
-                rowAlt = !rowAlt;
-                doc.setDrawColor(...LGRAY);
-                doc.setLineWidth(0.2);
-                doc.line(10, y+rowH, W-10, y+rowH);
-
-                const tag = item.type==='gift'?' [gift]':item.type==='self'?' [self]':'';
-                doc.setTextColor(...GRAY);
-                doc.text(String(idx+1), 12, y+4.5);
-                doc.setTextColor(...DARK);
-                doc.text(cyr(item.name + tag).substring(0, 32), 20, y+4.5);
-                doc.text(item.qty + ' ' + cyr(item.unit), 108, y+4.5, {align:'right'});
-                doc.setTextColor(...GRAY);
-                doc.text((item.price||0) + 'r', 128, y+4.5, {align:'right'});
-                doc.setFont('helvetica', 'bold');
-                doc.setTextColor(...DARK);
-                doc.text(item.total + 'r', W-12, y+4.5, {align:'right'});
-                doc.setFont('helvetica', 'normal');
-                y += rowH;
-                if (y > 180) { doc.addPage(); y = 15; }
-            });
-
-            y += 3;
-
-            // Итоговая строка
-            doc.setFillColor(...DARK);
-            doc.roundedRect(10, y, W-20, 10, 1.5, 1.5, 'F');
-            doc.setTextColor(...WHITE);
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(10);
-            doc.text('ITOGO:', 14, y+6.5);
-            doc.setFontSize(12);
-            doc.text(total + ' r', W-14, y+6.5, {align:'right'});
-            y += 16;
-
-            // Подписи
-            doc.setTextColor(...GRAY);
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(8);
-            doc.text('Sdal: ___________________', 12, y);
-            doc.text('Prinyal: ___________________', W/2+4, y);
-            y += 10;
-
-            // Нижняя полоска
-            doc.setFillColor(...BLUE);
-            doc.rect(0, doc.internal.pageSize.getHeight()-10, W, 10, 'F');
-            doc.setTextColor(...WHITE);
-            doc.setFontSize(7);
-            doc.setFont('helvetica', 'normal');
-            doc.text('T-Bank: +7 928 829 79 71  (Shakhrzad)  |  ASALYA Fresh & Natural', W/2, doc.internal.pageSize.getHeight()-4, {align:'center'});
-
-            return doc;
-        };
-
-        // ===== СКЛАД =====
-        window.toStock = function() {
-            if (!window.requireAuth()) return;
-            const name = document.getElementById('bName').value;
-            const qty = parseFloat(document.getElementById('bQty').value);
-            const price = parseFloat(document.getElementById('bPrice').value) || 0;
-            const extras = (parseFloat(document.getElementById('bEx1').value)||0) + (parseFloat(document.getElementById('bEx2').value)||0);
-            if (!name || isNaN(qty) || qty <= 0 || !price) { window._notify('Заполните поля','error'); return; }
-            const total = price + extras;
-            const unit = document.getElementById('bUnit').value;
-            window.buyHistory.push({ date: new Date().toLocaleString(), ts: new Date().toISOString(), name, qty, unit, total, unitCost: total/qty });
-            let item = window.stock.find(s => s.name === name && s.unit === unit);
-            if (item) { item.qty += qty; item.totalSpent += total; item.calcCost = item.totalSpent / item.qty; }
-            else { window.stock.push({ name, qty, unit, totalSpent: total, calcCost: total/qty, minStock: 0 }); }
-            document.getElementById('bName').value = '';
-            document.getElementById('bQty').value = '';
-            document.getElementById('bPrice').value = '';
-            scheduleSave();
-            window._notify('Товар принят');
-        };
-
-        // ===== КОРЗИНА =====
-        window.addToCart = function(type = 'sale') {
-            if (!window.requireAuth()) return;
-            const idx = document.getElementById('sProduct').value;
-            const qty = parseFloat(document.getElementById('sQty').value);
-            const price = parseFloat(document.getElementById('sPrice').value);
-            if (idx === "" || isNaN(qty) || qty <= 0) { window._notify('Заполните поля','error'); return; }
-            if (type === 'sale' && (!price || price <= 0)) { window._notify('Укажите цену','error'); return; }
-            const item = window.stock[idx];
-            if (qty > item.qty) { window._notify(`Остаток: ${item.qty} ${item.unit}`,'error'); return; }
-            window.cart.push({ name: item.name, qty, unit: item.unit, price: type==='sale'?price:0, total: qty*(type==='sale'?price:0), cost: item.calcCost*qty, type });
-            document.getElementById('sQty').value = '';
-            document.getElementById('sPrice').value = '';
-            renderCart();
-            window._notify(`Добавлено (${type})`);
-        };
-
-        window.removeFromCart = function(i) { window.cart.splice(i,1); renderCart(); };
-
-        window.renderCart = function() {
-            const tb = document.querySelector('#cartTable tbody');
-            if (!tb) return;
-            tb.innerHTML = '';
-            let total = 0;
-            window.cart.forEach((c,i) => {
-                total += c.total;
-                tb.innerHTML += `<tr><td>${c.name}</td><td>${c.qty} ${c.unit}</td><td>${c.total}р</td><td><button onclick="window.removeFromCart(${i})" style="width:auto;padding:2px 6px;">❌</button></td></tr>`;
-            });
-            document.getElementById('cTotal').innerText = total;
-        };
-
-        // ===== ОФОРМЛЕНИЕ ПРОДАЖИ =====
-        window.doSale = function(mode) {
-            if (!window.requireAuth()) return;
-            if (!window.cart.length) { window._notify('Корзина пуста','error'); return; }
-
-            const clientName = (document.getElementById('clientName').value || '').trim();
-            const clientPhone = (document.getElementById('clientPhone').value || '').trim();
-            const total = document.getElementById('cTotal').innerText;
-
-            if (mode === 'invoice') {
-                const client = document.getElementById('invoiceClient').value.trim();
-                if (!client) { window._notify('Укажите ресторан','error'); return; }
-            }
-
-            // Сохраняем продажи и списываем со склада
-            const saleDate = new Date().toLocaleString();
-            const saleTs = new Date().toISOString();
-            const saleDetails = window.cart.map(c => c.name + (c.type==='gift'?' (подарок)':c.type==='self'?' (себе)':'')).join(', ');
-
-            window.cart.forEach(c => {
-                const item = window.stock.find(s => s.name === c.name && s.unit === c.unit);
-                if (item) item.qty -= c.qty;
-                window.salesHistory.push({
-                    date: saleDate, ts: saleTs,
-                    clientName: clientName || '',
-                    clientPhone: clientPhone || '',
-                    details: c.name + (c.type==='gift'?' (подарок)':c.type==='self'?' (себе)':''),
-                    sum: c.total,
-                    profit: c.type==='sale' ? c.total - c.cost : -c.cost,
-                    type: c.type
-                });
-            });
-
-            // CRM: обновляем клиента
-            if (clientName || clientPhone) {
-                const client = findOrCreateClient(clientName, clientPhone);
-                if (client) {
-                    if (!client.orders) client.orders = [];
-                    client.orders.push({
-                        date: saleDate,
-                        ts: saleTs,
-                        details: saleDetails,
-                        sum: parseFloat(total) || 0
-                    });
-                }
-            }
-
-            // PDF
-            if (mode !== 'none') {
-                const cartCopy = [...window.cart];
-                const invoiceClient = document.getElementById('invoiceClient').value.trim();
-                const invoiceCustomer = document.getElementById('invoiceCustomer').value.trim();
-                setTimeout(() => {
-                    try {
-                        const doc = window.generatePDF(
-                            mode, cartCopy, total,
-                            { name: clientName, phone: clientPhone },
-                            { client: invoiceClient, customer: invoiceCustomer }
-                        );
-                        if (doc) {
-                            doc.save(`asalya_${mode}_${new Date().toISOString().slice(0,10)}.pdf`);
-                            window._notify('📥 PDF скачан');
-                            // Открываем WhatsApp если есть телефон
-                            if (clientPhone) {
-                                const phone = clientPhone.replace(/\D/g,'');
-                                setTimeout(() => {
-                                    window.open('https://wa.me/' + phone, '_blank');
-                                }, 1000);
-                            }
+                dbRef.on('value', function(snapshot) {
+                    var data = snapshot.val();
+                    if (!data) {
+                        if (window.stock.length || window.salesHistory.length || window.consumables.length) {
+                            scheduleSave();
                         }
-                    } catch(e) {
-                        console.error('PDF error:', e);
-                        window._notify('Ошибка PDF, попробуйте ещё раз','error');
+                        window.syncStatus = "online";
+                        updateSyncBadge();
+                        return;
                     }
-                }, 100);
-            }
+                    if (data.lastWriterId === window.CLIENT_ID) {
+                        window.syncStatus = "online";
+                        updateSyncBadge();
+                        return;
+                    }
 
-            // Очищаем
-            window.cart = [];
-            document.getElementById('invoiceClient').value = '';
-            document.getElementById('invoiceCustomer').value = '';
-            document.getElementById('clientName').value = '';
-            document.getElementById('clientPhone').value = '';
-            scheduleSave();
-            window._notify('Продажа оформлена');
-            renderCart();
-        };
-
-        // ===== ОСТАЛЬНЫЕ ФУНКЦИИ =====
-        window.setMinStock = function(i) {
-            if (!window.requireAuth()) return;
-            let v = prompt("Мин. остаток:", window.stock[i].minStock);
-            if (v !== null) { window.stock[i].minStock = parseFloat(v); scheduleSave(); }
-        };
-        window.removeFromStock = function(i) {
-            if (!window.requireAuth()) return;
-            if (confirm("Удалить?")) { window.stock.splice(i,1); scheduleSave(); }
-        };
-        window.addDefect = function() {
-            if (!window.requireAuth()) return;
-            const idx = document.getElementById('defectProduct').value;
-            const qty = parseFloat(document.getElementById('defectQty').value);
-            const reason = document.getElementById('defectReason').value.trim();
-            if (idx==='' || isNaN(qty) || qty<=0 || !reason) { window._notify('Заполните поля','error'); return; }
-            const s = window.stock[idx];
-            if (qty > s.qty) { window._notify(`Остаток ${s.qty}`,'error'); return; }
-            const loss = s.calcCost * qty;
-            s.qty -= qty;
-            window.defects.push({ date: new Date().toLocaleString(), name: s.name, unit: s.unit, qty, loss, reason });
-            scheduleSave();
-            window._notify('Брак списан');
-        };
-        window.deleteDefect = function(i) { if(confirm("Удалить?")){ window.defects.splice(i,1); scheduleSave(); } };
-        window.deleteBuyItem = function(i) { if(confirm("Удалить?")){ window.buyHistory.splice(i,1); scheduleSave(); } };
-        window.deleteSaleItem = function(i) { if(confirm("Удалить?")){ window.salesHistory.splice(i,1); scheduleSave(); } };
-        window.applyFilters = function() { render(); };
-
-        window.exportToExcel = function() {
-            let csv = "Дата,Клиент,Детали,Сумма,Прибыль\n";
-            window.salesHistory.forEach(h => csv += `${h.date},${h.clientName||''},${h.details},${h.sum},${h.profit}\n`);
-            const blob = new Blob(["\uFEFF" + csv], {type:'text/csv'});
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = `asala_${new Date().toISOString().slice(0,10)}.csv`;
-            a.click();
-            window._notify('Экспорт готов');
-        };
-
-        window.backupData = function() {
-            const data = { version:'asala_v82', stock:window.stock, history:window.salesHistory, buyHistory:window.buyHistory, suppliers:window.suppliers, defects:window.defects, clients:window.clients, updatedAt: getLocalUpdatedAt()||new Date().toISOString() };
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(new Blob([JSON.stringify(data)]));
-            a.download = `asala_backup_${new Date().toISOString().slice(0,10)}.json`;
-            a.click();
-        };
-
-        window.restoreData = function() {
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.onchange = e => {
-                const reader = new FileReader();
-                reader.onload = e => {
-                    const data = JSON.parse(e.target.result);
+                    window.isApplyingRemote = true;
                     window.stock = data.stock || [];
+                    window.consumables = data.consumables || [];
+                    window.preorders = data.preorders || [];
                     window.salesHistory = data.history || [];
                     window.buyHistory = data.buyHistory || [];
                     window.suppliers = data.suppliers || [];
                     window.defects = data.defects || [];
-                    window.clients = data.clients || [];
-                    if (data.updatedAt) setLocalUpdatedAt(data.updatedAt);
-                    scheduleSave();
-                    window._notify('Восстановлено');
+                    if (data.docCounter) window.docCounter = data.docCounter;
+                    writeLocalData();
+                    if (window.render) window.render();
+                    window.isApplyingRemote = false;
+                    window.syncStatus = "online";
+                    updateSyncBadge();
+                }, function(err) {
+                    console.error("Firebase read error:", err);
+                    window.syncStatus = "offline";
+                    updateSyncBadge();
+                });
+            } catch (e) {
+                console.error("Firebase init error:", e);
+                window.syncStatus = "offline";
+                updateSyncBadge();
+            }
+        }
+
+        // Переключение темы
+        window.toggleTheme = function() {
+            document.body.classList.toggle('dark-theme');
+            try {
+                localStorage.setItem('asala_theme', document.body.classList.contains('dark-theme') ? 'dark' : 'light');
+            } catch(e) {}
+        };
+        try {
+            if (localStorage.getItem('asala_theme') === 'dark') document.body.classList.add('dark-theme');
+        } catch(e) {}
+
+        // ==================== 1. ОСНОВНОЙ СКЛАД ====================
+        window.toStock = function() {
+            var name = document.getElementById('bName').value.trim();
+            var qty = parseFloat(document.getElementById('bQty').value);
+            var price = parseFloat(document.getElementById('bPrice').value) || 0;
+            var extras = (parseFloat(document.getElementById('bEx1').value) || 0) + (parseFloat(document.getElementById('bEx2').value) || 0);
+            if (!name || isNaN(qty) || qty <= 0 || price <= 0) {
+                window._notify('Укажите товар, кол-во и сумму закупа', 'error');
+                return;
+            }
+            var total = price + extras;
+            var unit = document.getElementById('bUnit').value;
+            var unitCost = total / qty;
+
+            window.buyHistory.push({
+                date: new Date().toLocaleString('ru-RU'),
+                ts: new Date().toISOString(),
+                name: name,
+                qty: qty,
+                unit: unit,
+                total: total,
+                unitCost: unitCost,
+                isPack: false
+            });
+
+            var item = window.stock.find(function(s) { return s.name.toLowerCase() === name.toLowerCase() && s.unit === unit; });
+            if (item) {
+                var currentVal = Math.max(0, item.qty) * (item.calcCost || 0);
+                item.qty = +(item.qty + qty).toFixed(3);
+                item.calcCost = (currentVal + total) / item.qty;
+                item.totalSpent = (item.totalSpent || 0) + total;
+            } else {
+                window.stock.push({
+                    name: name,
+                    qty: qty,
+                    unit: unit,
+                    totalSpent: total,
+                    calcCost: unitCost,
+                    minStock: 0
+                });
+            }
+
+            document.getElementById('bName').value = '';
+            document.getElementById('bQty').value = '';
+            document.getElementById('bPrice').value = '';
+            document.getElementById('bEx1').value = '0';
+            document.getElementById('bEx2').value = '0';
+            scheduleSave();
+            window._notify('Продукт принят на склад');
+        };
+
+        window.setMinStock = function(i) {
+            var v = prompt("Минимальный остаток:", window.stock[i].minStock || 0);
+            if (v !== null) {
+                window.stock[i].minStock = parseFloat(v) || 0;
+                scheduleSave();
+            }
+        };
+
+        window.removeFromStock = function(i) {
+            if (confirm('Удалить «' + window.stock[i].name + '» со склада?')) {
+                window.stock.splice(i, 1);
+                scheduleSave();
+            }
+        };
+
+        // ==================== 2. СКЛАД РАСХОДНИКОВ (БАНКИ СТЕКЛО/ПЛАСТИК, КРЫШКИ, ЭТИКЕТКИ) ====================
+        var packCategoryNames = {
+            glass_jar: "Стеклобанка",
+            glass_lid: "Крышка (для стекла)",
+            plastic_jar: "Пластиковая банка (с крышкой)",
+            label: "Этикетка / Наклейка",
+            other_pack: "Упаковка"
+        };
+
+        window.toPackStock = function() {
+            var cat = document.getElementById('pCategory').value;
+            var vol = document.getElementById('pVolume').value.trim();
+            var custom = document.getElementById('pCustomName').value.trim();
+            var qty = parseFloat(document.getElementById('pQty').value);
+            var totalCost = parseFloat(document.getElementById('pTotalCost').value);
+
+            if (isNaN(qty) || qty <= 0 || isNaN(totalCost) || totalCost < 0) {
+                window._notify('Укажите количество и сумму закупа тары', 'error');
+                return;
+            }
+            if ((cat === 'glass_jar' || cat === 'plastic_jar') && !vol) {
+                window._notify('Укажите объём банки (например: 0.5 л)', 'error');
+                return;
+            }
+
+            var baseTitle = custom || packCategoryNames[cat];
+            var unitCost = totalCost / qty;
+
+            window.buyHistory.push({
+                date: new Date().toLocaleString('ru-RU'),
+                ts: new Date().toISOString(),
+                name: '[Тара] ' + baseTitle + (vol ? ' (' + vol + ')' : ''),
+                qty: qty,
+                unit: 'шт',
+                total: totalCost,
+                unitCost: unitCost,
+                isPack: true
+            });
+
+            var existing = window.consumables.find(function(c) {
+                return c.cat === cat && (c.volume || '').toLowerCase() === vol.toLowerCase() && c.title.toLowerCase() === baseTitle.toLowerCase();
+            });
+            if (existing) {
+                var currentVal = Math.max(0, existing.qty) * (existing.unitCost || 0);
+                existing.qty += qty;
+                existing.unitCost = (currentVal + totalCost) / existing.qty;
+            } else {
+                window.consumables.push({
+                    id: 'pack_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+                    cat: cat,
+                    title: baseTitle,
+                    volume: vol,
+                    qty: qty,
+                    unitCost: unitCost,
+                    minStock: 10
+                });
+            }
+
+            document.getElementById('pVolume').value = '';
+            document.getElementById('pCustomName').value = '';
+            document.getElementById('pQty').value = '';
+            document.getElementById('pTotalCost').value = '';
+            scheduleSave();
+            window._notify('Тара добавлена на склад расходников');
+        };
+
+        window.setPackMinStock = function(i) {
+            var v = prompt("Минимальный остаток тары (шт):", window.consumables[i].minStock || 0);
+            if (v !== null) {
+                window.consumables[i].minStock = parseFloat(v) || 0;
+                scheduleSave();
+            }
+        };
+
+        window.removePackItem = function(i) {
+            if (confirm('Удалить «' + window.consumables[i].title + '» со склада расходников?')) {
+                window.consumables.splice(i, 1);
+                scheduleSave();
+            }
+        };
+
+        function calculatePackBundle(packType, packId, packQty) {
+            if (!packType || packType === 'none' || !packQty || packQty <= 0) {
+                return { unitPackCost: 0, totalPackCost: 0, labelText: '', volume: '', components: [] };
+            }
+            var mainPack = window.consumables.find(function(c) { return c.id === packId; });
+            if (!mainPack) return { unitPackCost: 0, totalPackCost: 0, labelText: '', volume: '', components: [] };
+
+            var unitCost = mainPack.unitCost || 0;
+            var components = [{ id: mainPack.id, title: mainPack.title, volume: mainPack.volume, qty: packQty }];
+            var labelText = '';
+
+            if (packType === 'glass') {
+                labelText = 'Стеклобанка ' + mainPack.volume;
+                var lid = window.consumables.find(function(c) { return c.cat === 'glass_lid' && c.qty > 0; }) || window.consumables.find(function(c) { return c.cat === 'glass_lid'; });
+                if (lid) {
+                    unitCost += (lid.unitCost || 0);
+                    components.push({ id: lid.id, title: lid.title, volume: '', qty: packQty });
+                }
+                var lbl = window.consumables.find(function(c) { return c.cat === 'label' && c.qty > 0; }) || window.consumables.find(function(c) { return c.cat === 'label'; });
+                if (lbl) {
+                    unitCost += (lbl.unitCost || 0);
+                    components.push({ id: lbl.id, title: lbl.title, volume: '', qty: packQty });
+                }
+            } else if (packType === 'plastic') {
+                labelText = 'Пластик ' + mainPack.volume;
+                var lbl2 = window.consumables.find(function(c) { return c.cat === 'label' && c.qty > 0; }) || window.consumables.find(function(c) { return c.cat === 'label'; });
+                if (lbl2) {
+                    unitCost += (lbl2.unitCost || 0);
+                    components.push({ id: lbl2.id, title: lbl2.title, volume: '', qty: packQty });
+                }
+            } else if (packType === 'other') {
+                labelText = mainPack.title;
+            }
+
+            return {
+                unitPackCost: unitCost,
+                totalPackCost: unitCost * packQty,
+                labelText: labelText,
+                volume: mainPack.volume || '',
+                components: components
+            };
+        }
+
+        window.updatePackSelector = function() {
+            var type = document.getElementById('sPackType').value;
+            var volSelect = document.getElementById('sPackVol');
+            var qtyInput = document.getElementById('sPackQty');
+            var hint = document.getElementById('packCostHint');
+
+            if (type === 'none') {
+                volSelect.style.display = 'none';
+                qtyInput.style.display = 'none';
+                hint.textContent = 'Без упаковки (продажа чистого веса/штук)';
+                return;
+            }
+
+            volSelect.style.display = 'block';
+            qtyInput.style.display = 'block';
+            volSelect.innerHTML = '';
+
+            var targetCat = type === 'glass' ? 'glass_jar' : (type === 'plastic' ? 'plastic_jar' : 'other_pack');
+            var items = window.consumables.filter(function(c) { return c.cat === targetCat; });
+
+            if (!items.length) {
+                volSelect.innerHTML = '<option value="">Нет на складе тары!</option>';
+                hint.textContent = '⚠️ Сначала добавьте тару во вкладке «Склад тары»';
+                return;
+            }
+
+            items.forEach(function(item) {
+                var volStr = item.volume ? ' (' + item.volume + ')' : '';
+                volSelect.innerHTML += '<option value="' + item.id + '">' + esc(item.title) + esc(volStr) + ' — ост: ' + item.qty + ' шт</option>';
+            });
+
+            updatePackHint();
+        };
+
+        function updatePackHint() {
+            var type = document.getElementById('sPackType').value;
+            var packId = document.getElementById('sPackVol').value;
+            var packQty = parseFloat(document.getElementById('sPackQty').value) || 1;
+            var hint = document.getElementById('packCostHint');
+            if (type === 'none' || !packId) return;
+
+            var bundle = calculatePackBundle(type, packId, packQty);
+            hint.textContent = 'Комплект тары (' + packQty + ' шт): себестоимость = ' + bundle.totalPackCost.toFixed(1) + ' р. (банка + крышка + этикетка)';
+        }
+
+        // ==================== 3. КАССА И КОРЗИНА ====================
+        window.addToCart = function(type) {
+            type = type || 'sale';
+            var idx = document.getElementById('sProduct').value;
+            var qty = parseFloat(document.getElementById('sQty').value);
+            var price = parseFloat(document.getElementById('sPrice').value);
+
+            if (idx === "" || isNaN(qty) || qty <= 0) {
+                window._notify('Выберите товар и укажите количество', 'error');
+                return;
+            }
+            if (type === 'sale' && (isNaN(price) || price <= 0)) {
+                window._notify('Укажите цену продажи', 'error');
+                return;
+            }
+
+            var item = window.stock[idx];
+            var alreadyInCart = window.cart
+                .filter(function(c) { return c.name === item.name && c.unit === item.unit; })
+                .reduce(function(acc, c) { return acc + c.qty; }, 0);
+
+            if (qty + alreadyInCart > item.qty) {
+                window._notify('Доступно на складе: ' + (item.qty - alreadyInCart).toFixed(2) + ' ' + item.unit, 'error');
+                return;
+            }
+
+            var packType = document.getElementById('sPackType').value;
+            var packId = document.getElementById('sPackVol').value;
+            var packQty = parseInt(document.getElementById('sPackQty').value) || 1;
+            var packBundle = calculatePackBundle(packType, packId, packQty);
+
+            var itemCost = (item.calcCost || 0) * qty;
+            var totalCostWithPack = itemCost + packBundle.totalPackCost;
+            var saleSum = type === 'sale' ? +(qty * price).toFixed(0) : 0;
+
+            window.cart.push({
+                name: item.name,
+                qty: qty,
+                unit: item.unit,
+                price: type === 'sale' ? price : 0,
+                total: saleSum,
+                productCost: itemCost,
+                packCost: packBundle.totalPackCost,
+                cost: totalCostWithPack,
+                packType: packType,
+                packLabel: packBundle.labelText,
+                packVolume: packBundle.volume || '',
+                packQty: packType !== 'none' ? packQty : 0,
+                packComponents: packBundle.components,
+                type: type
+            });
+
+            document.getElementById('sQty').value = '';
+            document.getElementById('sPackType').value = 'none';
+            window.updatePackSelector();
+            renderCart();
+            window._notify('Добавлено в корзину');
+        };
+
+        window.removeFromCart = function(i) {
+            window.cart.splice(i, 1);
+            renderCart();
+        };
+
+        window.renderCart = function() {
+            var tb = document.querySelector('#cartTable tbody');
+            if (!tb) return;
+            tb.innerHTML = '';
+            var subtotal = 0;
+            window.cart.forEach(function(c, i) {
+                subtotal += c.total;
+                var packInfo = c.packLabel ? '<br><small style="color:var(--p)">🫙 ' + esc(c.packLabel) + ' (' + c.packQty + ' шт)</small>' : '';
+                tb.innerHTML += '<tr>' +
+                    '<td><b>' + esc(c.name) + '</b>' + packInfo + '</td>' +
+                    '<td>' + c.qty + ' ' + esc(c.unit) + '</td>' +
+                    '<td>' + c.total + ' р.</td>' +
+                    '<td><button type="button" class="btn-sm" style="background:var(--e)" onclick="window.removeFromCart(' + i + ')">❌</button></td>' +
+                '</tr>';
+            });
+            var discEl = document.getElementById('cartDiscount');
+            var disc = discEl ? (parseFloat(discEl.value) || 0) : 0;
+            var finalTotal = Math.max(0, subtotal - disc);
+            document.getElementById('cTotal').innerText = finalTotal;
+        };
+
+        // ==================== 4. ПРЕДЗАКАЗЫ ====================
+        window.savePreorder = function() {
+            if (!window.cart.length) {
+                window._notify('Корзина пуста!', 'error');
+                return;
+            }
+            var client = document.getElementById('invoiceClient').value.trim();
+            var customer = document.getElementById('invoiceCustomer').value.trim() || client || 'Клиент';
+            var discount = parseFloat(document.getElementById('cartDiscount').value) || 0;
+            var subtotal = window.cart.reduce(function(s, c) { return s + c.total; }, 0);
+            var total = Math.max(0, subtotal - discount);
+
+            var preorderObj;
+            if (window.editingPreorderId) {
+                var idx = window.preorders.findIndex(function(p) { return p.id === window.editingPreorderId; });
+                if (idx !== -1) {
+                    window.preorders[idx].client = client;
+                    window.preorders[idx].customer = customer;
+                    window.preorders[idx].items = JSON.parse(JSON.stringify(window.cart));
+                    window.preorders[idx].discount = discount;
+                    window.preorders[idx].total = total;
+                    window.preorders[idx].date = new Date().toLocaleString('ru-RU');
+                    preorderObj = window.preorders[idx];
+                }
+                window.editingPreorderId = null;
+                document.getElementById('editingPreorderBadge').style.display = 'none';
+            } else {
+                window.docCounter++;
+                preorderObj = {
+                    id: 'pre_' + Date.now(),
+                    num: window.docCounter,
+                    date: new Date().toLocaleString('ru-RU'),
+                    client: client,
+                    customer: customer,
+                    items: JSON.parse(JSON.stringify(window.cart)),
+                    discount: discount,
+                    total: total
+                };
+                window.preorders.push(preorderObj);
+            }
+
+            window.cart = [];
+            document.getElementById('invoiceClient').value = '';
+            document.getElementById('invoiceCustomer').value = '';
+            document.getElementById('cartDiscount').value = '0';
+            renderCart();
+            scheduleSave();
+
+            window.openDocumentModal('preorder', preorderObj);
+            window._notify('Предзаказ сохранён!');
+        };
+
+        window.editPreorder = function(id) {
+            var p = window.preorders.find(function(x) { return x.id === id; });
+            if (!p) return;
+            window.cart = JSON.parse(JSON.stringify(p.items));
+            document.getElementById('invoiceClient').value = p.client || '';
+            document.getElementById('invoiceCustomer').value = p.customer || '';
+            document.getElementById('cartDiscount').value = p.discount || 0;
+            window.editingPreorderId = p.id;
+            document.getElementById('editingPreorderBadge').style.display = 'inline-block';
+            renderCart();
+            window.scrollTo(0, 0);
+            window._notify('Заказ загружен в кассу для изменения', 'warn');
+        };
+
+        window.deletePreorder = function(id) {
+            if (confirm('Удалить этот предзаказ?')) {
+                window.preorders = window.preorders.filter(function(x) { return x.id !== id; });
+                if (window.editingPreorderId === id) {
+                    window.editingPreorderId = null;
+                    document.getElementById('editingPreorderBadge').style.display = 'none';
+                }
+                scheduleSave();
+            }
+        };
+
+        window.previewPreorderReceipt = function(id) {
+            var p = window.preorders.find(function(x) { return x.id === id; });
+            if (p) window.openDocumentModal('preorder', p);
+        };
+
+        window.completePreorderSale = function(id, docMode) {
+            docMode = docMode || 'receipt';
+            var p = window.preorders.find(function(x) { return x.id === id; });
+            if (!p) return;
+            window.cart = JSON.parse(JSON.stringify(p.items));
+            document.getElementById('invoiceClient').value = p.client || '';
+            document.getElementById('invoiceCustomer').value = p.customer || '';
+            document.getElementById('cartDiscount').value = p.discount || 0;
+            window.editingPreorderId = p.id;
+            window.doSale(docMode, p.num);
+        };
+
+        // ==================== 5. ПРОВЕДЕНИЕ ПРОДАЖИ ====================
+        window.doSale = function(mode, existingDocNum) {
+            if (!window.cart.length) {
+                window._notify('Корзина пуста', 'error');
+                return;
+            }
+            var client = document.getElementById('invoiceClient').value.trim();
+            var customer = document.getElementById('invoiceCustomer').value.trim();
+            var discount = parseFloat(document.getElementById('cartDiscount').value) || 0;
+            var subtotal = window.cart.reduce(function(s, c) { return s + c.total; }, 0);
+            var finalTotal = Math.max(0, subtotal - discount);
+
+            if (!existingDocNum) window.docCounter++;
+            var docNum = existingDocNum || window.docCounter;
+            var nowStr = new Date().toLocaleString('ru-RU');
+            var nowIso = new Date().toISOString();
+
+            window.cart.forEach(function(c, idx) {
+                var stockItem = window.stock.find(function(s) { return s.name === c.name && s.unit === c.unit; });
+                if (stockItem) {
+                    stockItem.qty = +(stockItem.qty - c.qty).toFixed(3);
+                }
+
+                if (c.packComponents && c.packComponents.length) {
+                    c.packComponents.forEach(function(comp) {
+                        var consItem = window.consumables.find(function(x) { return x.id === comp.id; });
+                        if (consItem) {
+                            consItem.qty = Math.max(0, consItem.qty - comp.qty);
+                        }
+                    });
+                }
+
+                var itemDiscount = (idx === 0) ? discount : 0;
+                var itemRevenue = c.type === 'sale' ? (c.total - itemDiscount) : 0;
+                var itemProfit = c.type === 'sale' ? (itemRevenue - c.cost) : -c.cost;
+
+                var packNote = c.packLabel ? ' [' + c.packLabel + ' x' + c.packQty + ']' : '';
+                var clientNote = (client || customer) ? ' (' + (client || customer) + ')' : '';
+                var typeNote = c.type === 'gift' ? ' (Подарок)' : (c.type === 'self' ? ' (Себе)' : '');
+
+                window.salesHistory.push({
+                    id: 'sale_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
+                    docNum: docNum,
+                    date: nowStr,
+                    ts: nowIso,
+                    client: client,
+                    customer: customer,
+                    productName: c.name,
+                    qty: c.qty,
+                    unit: c.unit,
+                    price: c.price,
+                    packLabel: c.packLabel || '',
+                    packVolume: c.packVolume || '',
+                    packQty: c.packQty || 0,
+                    packComponents: c.packComponents || [],
+                    details: c.name + ' (' + c.qty + ' ' + c.unit + ')' + packNote + clientNote + typeNote,
+                    sum: itemRevenue,
+                    profit: itemProfit,
+                    type: c.type
+                });
+            });
+
+            if (window.editingPreorderId) {
+                window.preorders = window.preorders.filter(function(p) { return p.id !== window.editingPreorderId; });
+                window.editingPreorderId = null;
+                document.getElementById('editingPreorderBadge').style.display = 'none';
+            }
+
+            var docData = {
+                num: docNum,
+                date: nowStr,
+                client: client,
+                customer: customer,
+                items: JSON.parse(JSON.stringify(window.cart)),
+                discount: discount,
+                total: finalTotal
+            };
+
+            window.cart = [];
+            document.getElementById('invoiceClient').value = '';
+            document.getElementById('invoiceCustomer').value = '';
+            document.getElementById('cartDiscount').value = '0';
+            renderCart();
+            scheduleSave();
+
+            if (mode === 'invoice' || mode === 'receipt') {
+                window.openDocumentModal(mode, docData);
+            }
+            window._notify('Продажа проведена!');
+        };
+
+        // ==================== 6. УЛЬТРАКОМПАКТНАЯ НАКЛАДНАЯ И ЧЕК ====================
+        function buildInvoiceHtml(docData) {
+            var recipientName = docData.client || docData.customer || '___________________________';
+            var rowsHtml = docData.items.map(function(item, idx) {
+                var cleanTitle = esc(item.name);
+                if (item.packVolume) {
+                    var jarType = item.packType === 'glass' ? 'Стеклобанка' : (item.packType === 'plastic' ? 'Пластик' : 'Банка');
+                    cleanTitle += ' (' + jarType + ' ' + esc(item.packVolume) + ')';
+                }
+                return '<tr>' +
+                    '<td style="text-align:center;">' + (idx + 1) + '</td>' +
+                    '<td>' + cleanTitle + '</td>' +
+                    '<td style="text-align:center;">' + item.qty + ' ' + esc(item.unit) + '</td>' +
+                    '<td style="text-align:right;">' + item.price + '</td>' +
+                    '<td style="text-align:right; font-weight:600;">' + item.total + '</td>' +
+                '</tr>';
+            }).join('');
+
+            return '<div class="inv-doc" id="captureTarget">' +
+                '<div class="inv-header">' +
+                    '<div>' +
+                        '<h1>АСАЛЯ</h1>' +
+                        '<div class="inv-sub">Горные традиции | ул. Кавказская, 61</div>' +
+                    '</div>' +
+                    '<div style="text-align:right; font-size:11px; font-weight:700;">' +
+                        'Тел: 8 (989) 458-30-33' +
+                    '</div>' +
+                '</div>' +
+                '<div class="inv-info">' +
+                    '<div><strong>Накладная №:</strong> ' + String(docData.num).padStart(4, '0') + '</div>' +
+                    '<div><strong>Дата:</strong> ' + esc(docData.date.split(',')[0]) + '</div>' +
+                '</div>' +
+                '<div class="inv-recipient">' +
+                    'Получатель (Ресторан / Кафе): ' + esc(recipientName) +
+                '</div>' +
+                '<table class="inv-table">' +
+                    '<thead>' +
+                        '<tr>' +
+                            '<th style="width:22px; text-align:center;">№</th>' +
+                            '<th>Наименование товара</th>' +
+                            '<th style="width:58px; text-align:center;">Кол-во</th>' +
+                            '<th style="width:54px; text-align:right;">Цена</th>' +
+                            '<th style="width:64px; text-align:right;">Сумма</th>' +
+                        '</tr>' +
+                    '</thead>' +
+                    '<tbody>' +
+                        rowsHtml +
+                        '<tr>' +
+                            '<td colspan="4" style="text-align:right; font-weight:800;">ИТОГО К ОПЛАТЕ:</td>' +
+                            '<td style="text-align:right; font-weight:800;">' + docData.total + ' р.</td>' +
+                        '</tr>' +
+                    '</tbody>' +
+                '</table>' +
+                '<div class="inv-footer">' +
+                    'Оплата Т-Банк: +7 (928) 829-79-71 (Шахрузад)' +
+                '</div>' +
+            '</div>';
+        }
+
+        function buildReceiptHtml(docData, isPreorder) {
+            var clientLine = (docData.customer || docData.client)
+                ? '<div style="font-size:12px; margin-bottom:5px;"><b>Клиент:</b> ' + esc(docData.customer || docData.client) + '</div>'
+                : '';
+
+            var itemsHtml = docData.items.map(function(item, idx) {
+                var jarBadge = '';
+                if (item.packVolume) {
+                    var jarType = item.packType === 'glass' ? 'Стеклобанка' : (item.packType === 'plastic' ? 'Пластик' : 'Банка');
+                    jarBadge = ' <span style="color:#b45309; font-weight:700;">(' + jarType + ' ' + esc(item.packVolume) + ' — ' + item.packQty + ' шт)</span>';
+                }
+                return '<div class="rec-item">' +
+                    '<div class="rec-item-title">' +
+                        '<span>' + (idx + 1) + '. ' + esc(item.name) + jarBadge + '</span>' +
+                        '<span style="white-space:nowrap;">' + item.total + ' р.</span>' +
+                    '</div>' +
+                    '<div class="rec-item-sub">' +
+                        '<span>' + item.qty + ' ' + esc(item.unit) + ' × ' + item.price + ' р.</span>' +
+                        '<span></span>' +
+                    '</div>' +
+                '</div>';
+            }).join('');
+
+            var discountHtml = docData.discount > 0
+                ? '<div style="display:flex; justify-content:space-between; font-size:12px; margin-top:4px; color:#c0392b;"><span>Скидка:</span><span>-' + docData.discount + ' р.</span></div>'
+                : '';
+
+            return '<div class="rec-doc" id="captureTarget">' +
+                '<div class="rec-head">' +
+                    '<h1>АСАЛЯ</h1>' +
+                    '<p>Горные традиции</p>' +
+                    '<p>ул. Кавказская, 61</p>' +
+                    '<p><b>Тел: 8 (989) 458-30-33</b></p>' +
+                '</div>' +
+                '<div class="rec-badge ' + (isPreorder ? 'pre' : 'paid') + '">' +
+                    (isPreorder ? '📋 ПРЕДВАРИТЕЛЬНЫЙ РАСЧЁТ' : '✅ ТОВАРНЫЙ ЧЕК (ОПЛАЧЕНО)') +
+                '</div>' +
+                '<div style="display:flex; justify-content:space-between; font-size:11px; color:#555; margin-bottom:4px;">' +
+                    '<span>Документ №: ' + String(docData.num).padStart(4, '0') + '</span>' +
+                    '<span>' + esc(docData.date) + '</span>' +
+                '</div>' +
+                clientLine +
+                '<div style="border-top:1px dashed #888; margin-top:4px;">' +
+                    itemsHtml +
+                '</div>' +
+                discountHtml +
+                '<div class="rec-total">' +
+                    '<span>ИТОГО:</span>' +
+                    '<span>' + docData.total + ' р.</span>' +
+                '</div>' +
+                '<div class="rec-bank">' +
+                    '💳 <b>Перевод по номеру (Т-Банк):</b><br>' +
+                    '+7 (928) 829-79-71<br>' +
+                    'Получатель: Шахрузад' +
+                '</div>' +
+                '<div style="text-align:center; font-size:10.5px; color:#666; margin-top:6px;">' +
+                    (isPreorder ? '* Заказ собран и ожидает вашего подтверждения' : 'Спасибо за покупку! Ждём вас снова!') +
+                '</div>' +
+            '</div>';
+        }
+
+        window.openDocumentModal = function(mode, docData) {
+            var wrap = document.getElementById('docPreviewWrap');
+            var pz = document.getElementById('print-zone');
+            var html = '';
+            if (mode === 'invoice') {
+                html = buildInvoiceHtml(docData);
+            } else if (mode === 'preorder') {
+                html = buildReceiptHtml(docData, true);
+            } else {
+                html = buildReceiptHtml(docData, false);
+            }
+            wrap.innerHTML = html;
+            pz.innerHTML = html;
+            document.getElementById('docModal').style.display = 'flex';
+        };
+
+        window.reopenHistoryDoc = function(origIdx, mode) {
+            mode = mode || 'receipt';
+            var h = window.salesHistory[origIdx];
+            if (!h) return;
+            var docData = {
+                num: h.docNum || (origIdx + 1),
+                date: h.date,
+                client: h.client || '',
+                customer: h.customer || '',
+                items: [{
+                    name: h.productName || h.details,
+                    qty: h.qty || 1,
+                    unit: h.unit || 'шт',
+                    price: h.price || h.sum,
+                    total: h.sum,
+                    packVolume: h.packVolume || '',
+                    packQty: h.packQty || 1,
+                    packType: h.packLabel && h.packLabel.indexOf('Стекло') !== -1 ? 'glass' : 'plastic'
+                }],
+                discount: 0,
+                total: h.sum
+            };
+            window.openDocumentModal(mode, docData);
+        };
+
+        function captureDocBlob() {
+            var target = document.getElementById('captureTarget');
+            if (!target || typeof html2canvas === 'undefined') return Promise.resolve(null);
+            return html2canvas(target, { scale: 2, backgroundColor: '#ffffff' }).then(function(canvas) {
+                return new Promise(function(resolve) { canvas.toBlob(resolve, 'image/png'); });
+            });
+        }
+
+        // ==================== 7. ПОСТАВЩИКИ, БРАК И ИСТОРИЯ ====================
+        window.addSupplierPayment = function() {
+            var name = document.getElementById('supName').value.trim();
+            var idx = document.getElementById('supProduct').value;
+            var payment = parseFloat(document.getElementById('supPayment').value) || 0;
+            var comment = document.getElementById('supComment').value.trim();
+            if (!name || idx === '' || payment <= 0) {
+                window._notify('Заполните поставщика, товар и сумму', 'error');
+                return;
+            }
+            var s = window.stock[idx];
+            var sp = window.suppliers.find(function(x) { return x.name.toLowerCase() === name.toLowerCase() && x.productName === s.name; });
+            if (!sp) {
+                sp = { name: name, productName: s.name, productUnit: s.unit, totalCost: s.totalSpent, paid: 0, comment: comment };
+                window.suppliers.push(sp);
+            } else {
+                sp.totalCost = s.totalSpent;
+                if (comment) sp.comment = comment;
+            }
+            sp.paid += payment;
+            document.getElementById('supPayment').value = '';
+            document.getElementById('supComment').value = '';
+            scheduleSave();
+            window._notify('Оплата записана');
+        };
+
+        window.deleteSupplier = function(i) {
+            if (confirm("Удалить запись поставщика?")) {
+                window.suppliers.splice(i, 1);
+                scheduleSave();
+            }
+        };
+
+        window.addDefect = function() {
+            var idx = document.getElementById('defectProduct').value;
+            var qty = parseFloat(document.getElementById('defectQty').value);
+            var reason = document.getElementById('defectReason').value.trim();
+            if (idx === '' || isNaN(qty) || qty <= 0 || !reason) {
+                window._notify('Заполните товар, кол-во и причину', 'error');
+                return;
+            }
+            var s = window.stock[idx];
+            if (qty > s.qty) {
+                window._notify('На складе всего ' + s.qty + ' ' + s.unit, 'error');
+                return;
+            }
+            var loss = (s.calcCost || 0) * qty;
+            s.qty = +(s.qty - qty).toFixed(3);
+            window.defects.push({
+                date: new Date().toLocaleString('ru-RU'),
+                name: s.name,
+                unit: s.unit,
+                qty: qty,
+                loss: loss,
+                reason: reason
+            });
+            document.getElementById('defectQty').value = '';
+            document.getElementById('defectReason').value = '';
+            scheduleSave();
+            window._notify('Брак списан');
+        };
+
+        window.deleteDefect = function(i) {
+            var d = window.defects[i];
+            if (!d) return;
+            if (confirm('Удалить запись о браке и вернуть ' + d.qty + ' ' + d.unit + ' обратно на склад?')) {
+                var stockItem = window.stock.find(function(s) { return s.name === d.name && s.unit === d.unit; });
+                if (stockItem) stockItem.qty = +(stockItem.qty + d.qty).toFixed(3);
+                window.defects.splice(i, 1);
+                scheduleSave();
+                window._notify('Товар возвращён на склад');
+            }
+        };
+
+        window.deleteSaleItem = function(i) {
+            var h = window.salesHistory[i];
+            if (!h) return;
+            if (confirm('Удалить продажу и вернуть товар и тару обратно на склад?')) {
+                if (h.productName && h.qty) {
+                    var stockItem = window.stock.find(function(s) { return s.name === h.productName && s.unit === h.unit; });
+                    if (stockItem) stockItem.qty = +(stockItem.qty + h.qty).toFixed(3);
+                }
+                if (h.packComponents && h.packComponents.length) {
+                    h.packComponents.forEach(function(comp) {
+                        var consItem = window.consumables.find(function(x) { return x.id === comp.id; });
+                        if (consItem) consItem.qty += comp.qty;
+                    });
+                }
+                window.salesHistory.splice(i, 1);
+                scheduleSave();
+                window._notify('Продажа удалена, остатки возвращены');
+            }
+        };
+
+        window.deleteBuyItem = function(i) {
+            if (confirm("Удалить запись из истории закупа?")) {
+                window.buyHistory.splice(i, 1);
+                scheduleSave();
+            }
+        };
+
+        // ==================== 8. ЭКСПОРТ И ПОЛНЫЙ БЭКАП ====================
+        window.exportToExcel = function() {
+            var csv = "Дата;Клиент;Детали;Сумма (р);Чистая прибыль (р);Тип\n";
+            window.salesHistory.forEach(function(h) {
+                var cl = (h.client || h.customer || '-').replace(/;/g, ',');
+                var det = (h.details || '').replace(/;/g, ',');
+                csv += '"' + h.date + '";"' + cl + '";"' + det + '";' + (h.sum || 0).toFixed(0) + ';' + (h.profit || 0).toFixed(0) + ';"' + (h.type || 'sale') + '"\n';
+            });
+            var blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'asala_report_' + new Date().toISOString().slice(0, 10) + '.csv';
+            a.click();
+            window._notify('CSV файл готов');
+        };
+
+        window.backupData = function() {
+            var data = {
+                stock: window.stock,
+                consumables: window.consumables,
+                preorders: window.preorders,
+                history: window.salesHistory,
+                buyHistory: window.buyHistory,
+                suppliers: window.suppliers,
+                defects: window.defects,
+                docCounter: window.docCounter
+            };
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+            a.download = 'asala_full_backup_' + new Date().toISOString().slice(0, 10) + '.json';
+            a.click();
+            window._notify('Полный бэкап сохранён');
+        };
+
+        window.restoreData = function() {
+            var input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.onchange = function(e) {
+                var reader = new FileReader();
+                reader.onload = function(ev) {
+                    try {
+                        var data = JSON.parse(ev.target.result);
+                        window.stock = data.stock || [];
+                        window.consumables = data.consumables || [];
+                        window.preorders = data.preorders || [];
+                        window.salesHistory = data.history || [];
+                        window.buyHistory = data.buyHistory || [];
+                        window.suppliers = data.suppliers || [];
+                        window.defects = data.defects || [];
+                        if (data.docCounter) window.docCounter = data.docCounter;
+                        scheduleSave();
+                        window._notify('База успешно восстановлена!');
+                    } catch (err) {
+                        window._notify('Ошибка чтения файла', 'error');
+                    }
                 };
                 reader.readAsText(e.target.files[0]);
             };
             input.click();
         };
 
-        window.addSupplierPayment = function() {
-            if (!window.requireAuth()) return;
-            const name = document.getElementById('supName').value.trim();
-            const idx = document.getElementById('supProduct').value;
-            const payment = parseFloat(document.getElementById('supPayment').value) || 0;
-            if (!name || idx==='' || payment<=0) { window._notify('Заполните поля','error'); return; }
-            const s = window.stock[idx];
-            let sp = window.suppliers.find(x => x.name===name && x.productName===s.name);
-            if (!sp) { sp = { name, productName:s.name, productUnit:s.unit, totalCost:s.totalSpent, paid:0 }; window.suppliers.push(sp); }
-            sp.paid += payment;
-            scheduleSave();
-            window._notify('Оплата записана');
-        };
-        window.deleteSupplier = function(i) { if(confirm("Удалить?")){ window.suppliers.splice(i,1); scheduleSave(); } };
+        // ==================== 9. ОТРИСОВКА ИНТЕРФЕЙСА ====================
+        window.render = function() {
+            var sTb = document.querySelector('#stockTable tbody');
+            var pTb = document.querySelector('#packTable tbody');
+            var preTb = document.querySelector('#preordersTable tbody');
+            var sPr = document.getElementById('sProduct');
+            var fPr = document.getElementById('filterProduct');
+            var supPr = document.getElementById('supProduct');
+            var defPr = document.getElementById('defectProduct');
+            var supTb = document.querySelector('#suppliersTable tbody');
+            var defTb = document.querySelector('#defectTable tbody');
+            var buyTb = document.querySelector('#buyHistoryTable tbody');
+            var histTb = document.querySelector('#hTable tbody');
 
-        // ===== РЕНДЕР =====
-        function render() {
-            const sTb = document.querySelector('#stockTable tbody');
-            const sPr = document.getElementById('sProduct');
-            const fPr = document.getElementById('filterProduct');
-            const supPr = document.getElementById('supProduct');
-            const defPr = document.getElementById('defectProduct');
-            const supTb = document.querySelector('#suppliersTable tbody');
-            const defTb = document.querySelector('#defectTable tbody');
-            const buyTb = document.querySelector('#buyHistoryTable tbody');
-            const histTb = document.querySelector('#hTable tbody');
+            var savedFilterProduct = fPr ? fPr.value : '';
+            var savedSaleProduct = sPr ? sPr.value : '';
 
-            if(sTb) sTb.innerHTML = '';
-            if(sPr) sPr.innerHTML = '<option value="">-- Выбрать --</option>';
-            if(fPr) fPr.innerHTML = '<option value="">Все</option>';
-            if(supPr) supPr.innerHTML = '<option value="">-- Товар --</option>';
-            if(defPr) defPr.innerHTML = '<option value="">-- Товар --</option>';
+            if (sTb) sTb.innerHTML = '';
+            if (pTb) pTb.innerHTML = '';
+            if (preTb) preTb.innerHTML = '';
+            if (sPr) sPr.innerHTML = '<option value="">-- Выберите продукт --</option>';
+            if (fPr) fPr.innerHTML = '<option value="">Все продукты</option>';
+            if (supPr) supPr.innerHTML = '<option value="">-- Товар --</option>';
+            if (defPr) defPr.innerHTML = '<option value="">-- Товар --</option>';
 
-            let totalStock = 0, totalRevenue = 0, totalProfit = 0;
-            window.stock.forEach((s,i) => {
-                totalStock += s.totalSpent;
-                const low = s.minStock && s.qty <= s.minStock ? ' style="background:#fff3cd"' : '';
-                if(sTb) sTb.innerHTML += `<tr${low}><td>${s.name}</td><td>${s.qty.toFixed(2)} ${s.unit}</td><td>${s.totalSpent.toFixed(0)}р</td><td>${s.minStock||0} <button onclick="window.setMinStock(${i})" style="width:auto;padding:2px 5px;font-size:11px;">✏️</button></td><td><button onclick="window.removeFromStock(${i})" style="width:auto;padding:2px 5px;background:#e74c3c;">❌</button></td></tr>`;
-                if(sPr) sPr.innerHTML += `<option value="${i}">${s.name} (${s.qty} ${s.unit})</option>`;
-                if(fPr) fPr.innerHTML += `<option value="${s.name}">${s.name}</option>`;
-                if(supPr) supPr.innerHTML += `<option value="${i}">${s.name}</option>`;
-                if(defPr) defPr.innerHTML += `<option value="${i}">${s.name} (${s.qty} ${s.unit})</option>`;
+            var totalStockValue = 0;
+            var totalPackValue = 0;
+            var totalRevenue = 0;
+            var totalProfit = 0;
+
+            window.stock.forEach(function(s, i) {
+                var currentStockWorth = Math.max(0, s.qty) * (s.calcCost || 0);
+                totalStockValue += currentStockWorth;
+                var isLow = s.minStock > 0 && s.qty <= s.minStock;
+
+                if (sTb) {
+                    sTb.innerHTML += '<tr class="' + (isLow ? 'low-stock' : '') + '">' +
+                        '<td><b>' + esc(s.name) + '</b> ' + (isLow ? '⚠️' : '') + '</td>' +
+                        '<td>' + Number(s.qty).toFixed(2) + ' ' + esc(s.unit) + '</td>' +
+                        '<td>' + (s.calcCost || 0).toFixed(1) + ' р</td>' +
+                        '<td>' + currentStockWorth.toFixed(0) + ' р</td>' +
+                        '<td>' + (s.minStock || 0) + ' <button type="button" class="btn-sm" onclick="window.setMinStock(' + i + ')">✏️</button></td>' +
+                        '<td><button type="button" class="btn-sm" style="background:var(--e)" onclick="window.removeFromStock(' + i + ')">❌</button></td>' +
+                    '</tr>';
+                }
+                if (sPr) sPr.innerHTML += '<option value="' + i + '">' + esc(s.name) + ' (' + Number(s.qty).toFixed(2) + ' ' + esc(s.unit) + ')</option>';
+                if (fPr) fPr.innerHTML += '<option value="' + esc(s.name) + '">' + esc(s.name) + '</option>';
+                if (supPr) supPr.innerHTML += '<option value="' + i + '">' + esc(s.name) + '</option>';
+                if (defPr) defPr.innerHTML += '<option value="' + i + '">' + esc(s.name) + ' (' + Number(s.qty).toFixed(2) + ' ' + esc(s.unit) + ')</option>';
             });
 
-            const dateFrom = document.getElementById('dateFrom') ? document.getElementById('dateFrom').value : '';
-            const dateTo = document.getElementById('dateTo') ? document.getElementById('dateTo').value : '';
-            const filterProduct = document.getElementById('filterProduct') ? document.getElementById('filterProduct').value : '';
-            let dateToEnd = null;
-            if (dateTo) { dateToEnd = new Date(dateTo); dateToEnd.setHours(23,59,59,999); }
+            if (fPr && savedFilterProduct) fPr.value = savedFilterProduct;
+            if (sPr && savedSaleProduct) sPr.value = savedSaleProduct;
 
-            const filteredHistory = window.salesHistory.filter(h => {
-                if (filterProduct && !h.details.includes(filterProduct)) return false;
-                if (dateFrom && new Date(h.ts) < new Date(dateFrom)) return false;
-                if (dateToEnd && new Date(h.ts) > dateToEnd) return false;
+            window.consumables.forEach(function(c, i) {
+                totalPackValue += Math.max(0, c.qty) * (c.unitCost || 0);
+                var isLow = c.minStock > 0 && c.qty <= c.minStock;
+                if (pTb) {
+                    pTb.innerHTML += '<tr class="' + (isLow ? 'low-stock' : '') + '">' +
+                        '<td><b>' + esc(c.title) + '</b> ' + (isLow ? '⚠️' : '') + '</td>' +
+                        '<td>' + esc(c.volume || '—') + '</td>' +
+                        '<td>' + c.qty + ' шт</td>' +
+                        '<td>' + (c.unitCost || 0).toFixed(1) + ' р</td>' +
+                        '<td>' + (c.minStock || 0) + ' <button type="button" class="btn-sm" onclick="window.setPackMinStock(' + i + ')">✏️</button></td>' +
+                        '<td><button type="button" class="btn-sm" style="background:var(--e)" onclick="window.removePackItem(' + i + ')">❌</button></td>' +
+                    '</tr>';
+                }
+            });
+
+            if (preTb) {
+                if (!window.preorders.length) {
+                    preTb.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#888;">Активных предзаказов нет</td></tr>';
+                } else {
+                    window.preorders.slice().reverse().forEach(function(p) {
+                        var itemsSummary = p.items.map(function(it) {
+                            return esc(it.name) + ' (' + it.qty + ' ' + esc(it.unit) + (it.packVolume ? ', ' + esc(it.packVolume) : '') + ')';
+                        }).join(', ');
+                        preTb.innerHTML += '<tr>' +
+                            '<td><b>#' + p.num + '</b><br><small>' + esc(p.date) + '</small></td>' +
+                            '<td><b>' + esc(p.customer || p.client) + '</b></td>' +
+                            '<td style="font-size:11.5px;">' + itemsSummary + '</td>' +
+                            '<td><b>' + p.total + ' р.</b></td>' +
+                            '<td>' +
+                                '<button type="button" class="btn-sm" style="background:#25D366" onclick="window.previewPreorderReceipt(\'' + p.id + '\')">📲 Чек</button>' +
+                                '<button type="button" class="btn-sm" style="background:var(--w)" onclick="window.editPreorder(\'' + p.id + '\')">✏️</button>' +
+                                '<button type="button" class="btn-sm" style="background:var(--s)" onclick="window.completePreorderSale(\'' + p.id + '\', \'receipt\')">✅ Чек</button>' +
+                                '<button type="button" class="btn-sm" style="background:var(--p)" onclick="window.completePreorderSale(\'' + p.id + '\', \'invoice\')">📄 Накл.</button>' +
+                                '<button type="button" class="btn-sm" style="background:var(--e)" onclick="window.deletePreorder(\'' + p.id + '\')">❌</button>' +
+                            '</td>' +
+                        '</tr>';
+                    });
+                }
+            }
+
+            var filterDateFrom = document.getElementById('dateFrom') ? document.getElementById('dateFrom').value : '';
+            var filterDateTo = document.getElementById('dateTo') ? document.getElementById('dateTo').value : '';
+            var filterProduct = fPr ? fPr.value : '';
+
+            var filteredHistory = window.salesHistory.filter(function(h) {
+                if (filterProduct && (h.details || '').indexOf(filterProduct) === -1) return false;
+                if (filterDateFrom && new Date(h.ts) < new Date(filterDateFrom + 'T00:00:00')) return false;
+                if (filterDateTo && new Date(h.ts) > new Date(filterDateTo + 'T23:59:59')) return false;
                 return true;
             });
 
-            filteredHistory.slice().reverse().forEach(h => {
-                const origIdx = window.salesHistory.indexOf(h);
-                totalRevenue += h.sum || 0;
-                totalProfit += h.profit || 0;
-                const clientInfo = [h.clientName, h.clientPhone].filter(Boolean).join(' / ') || '—';
-                if(histTb) histTb.innerHTML += `<tr><td>${h.date}</td><td>${clientInfo}</td><td>${h.details}</td><td>${(h.sum||0).toFixed(0)}р</td><td>${(h.profit||0).toFixed(0)}р</td><td>${h.type||'sale'}</td><td><button onclick="window.deleteSaleItem(${origIdx})" style="width:auto;padding:2px 5px;background:#e74c3c;">❌</button></td></tr>`;
-            });
+            if (histTb) {
+                histTb.innerHTML = '';
+                filteredHistory.slice().reverse().forEach(function(h) {
+                    var origIdx = window.salesHistory.indexOf(h);
+                    totalRevenue += h.sum || 0;
+                    totalProfit += h.profit || 0;
+                    histTb.innerHTML += '<tr>' +
+                        '<td>' + esc(h.date) + '</td>' +
+                        '<td>' + esc(h.details) + '</td>' +
+                        '<td>' + (h.sum || 0).toFixed(0) + ' р</td>' +
+                        '<td style="color:' + ((h.profit || 0) >= 0 ? 'var(--s)' : 'var(--e)') + '; font-weight:700;">' + (h.profit || 0).toFixed(0) + ' р</td>' +
+                        '<td style="white-space:nowrap;">' +
+                            '<button type="button" class="btn-sm" onclick="window.reopenHistoryDoc(' + origIdx + ', \'receipt\')">🧾</button>' +
+                            '<button type="button" class="btn-sm" onclick="window.reopenHistoryDoc(' + origIdx + ', \'invoice\')">📄</button>' +
+                        '</td>' +
+                        '<td><button type="button" class="btn-sm" style="background:var(--e)" onclick="window.deleteSaleItem(' + origIdx + ')">❌</button></td>' +
+                    '</tr>';
+                });
+            }
 
-            const filteredBuy = filterProduct ? window.buyHistory.filter(b=>b.name===filterProduct) : window.buyHistory;
-            filteredBuy.slice().reverse().forEach(b => {
-                const origIdx = window.buyHistory.indexOf(b);
-                if(buyTb) buyTb.innerHTML += `<tr><td>${b.date}</td><td>${b.name}</td><td>${b.qty} ${b.unit}</td><td>${b.total.toFixed(0)}р</td><td>${b.unitCost.toFixed(1)}р/${b.unit}</td><td><button onclick="window.deleteBuyItem(${origIdx})" style="width:auto;padding:2px 5px;background:#e74c3c;">❌</button></td></tr>`;
-            });
+            if (buyTb) {
+                buyTb.innerHTML = '';
+                var filteredBuy = filterProduct ? window.buyHistory.filter(function(b) { return (b.name || '').indexOf(filterProduct) !== -1; }) : window.buyHistory;
+                filteredBuy.slice().reverse().forEach(function(b) {
+                    var origIdx = window.buyHistory.indexOf(b);
+                    buyTb.innerHTML += '<tr>' +
+                        '<td>' + esc(b.date) + '</td>' +
+                        '<td>' + esc(b.name) + '</td>' +
+                        '<td>' + b.qty + ' ' + esc(b.unit) + '</td>' +
+                        '<td>' + (b.total || 0).toFixed(0) + ' р</td>' +
+                        '<td>' + (b.unitCost || 0).toFixed(1) + ' р</td>' +
+                        '<td><button type="button" class="btn-sm" style="background:var(--e)" onclick="window.deleteBuyItem(' + origIdx + ')">❌</button></td>' +
+                    '</tr>';
+                });
+            }
 
-            if(supTb) {
+            if (supTb) {
                 supTb.innerHTML = '';
-                window.suppliers.forEach((sp,i) => {
-                    const debt = Math.max(0, sp.totalCost - sp.paid);
-                    supTb.innerHTML += `<tr><td>${sp.name}</td><td>${sp.productName}</td><td>${sp.totalCost.toFixed(0)}р</td><td>${sp.paid.toFixed(0)}р</td><td>${debt.toFixed(0)}р</td><td><button onclick="window.deleteSupplier(${i})" style="width:auto;padding:2px 5px;background:#e74c3c;">❌</button></td></tr>`;
+                window.suppliers.forEach(function(sp, i) {
+                    var debt = Math.max(0, (sp.totalCost || 0) - (sp.paid || 0));
+                    supTb.innerHTML += '<tr>' +
+                        '<td>' + esc(sp.name) + '</td>' +
+                        '<td>' + esc(sp.productName) + '</td>' +
+                        '<td>' + (sp.totalCost || 0).toFixed(0) + ' р</td>' +
+                        '<td>' + (sp.paid || 0).toFixed(0) + ' р</td>' +
+                        '<td style="color:' + (debt > 0 ? 'var(--e)' : 'var(--s)') + '; font-weight:700;">' + debt.toFixed(0) + ' р</td>' +
+                        '<td>' + esc(sp.comment || '—') + '</td>' +
+                        '<td><button type="button" class="btn-sm" style="background:var(--e)" onclick="window.deleteSupplier(' + i + ')">❌</button></td>' +
+                    '</tr>';
                 });
             }
 
-            if(defTb) {
+            var totalDefectLoss = 0;
+            if (defTb) {
                 defTb.innerHTML = '';
-                let totalLoss = 0;
-                window.defects.slice().reverse().forEach(d => {
-                    totalLoss += d.loss;
-                    const origIdx = window.defects.indexOf(d);
-                    defTb.innerHTML += `<tr><td>${d.date}</td><td>${d.name}</td><td>${d.qty} ${d.unit}</td><td>-${d.loss.toFixed(0)}р</td><td>${d.reason}</td><td><button onclick="window.deleteDefect(${origIdx})" style="width:auto;padding:2px 5px;background:#e74c3c;">❌</button></td></tr>`;
+                window.defects.slice().reverse().forEach(function(d) {
+                    totalDefectLoss += d.loss || 0;
+                    var origIdx = window.defects.indexOf(d);
+                    defTb.innerHTML += '<tr>' +
+                        '<td>' + esc(d.date) + '</td>' +
+                        '<td>' + esc(d.name) + '</td>' +
+                        '<td>' + d.qty + ' ' + esc(d.unit) + '</td>' +
+                        '<td style="color:var(--e)">-' + (d.loss || 0).toFixed(0) + ' р</td>' +
+                        '<td>' + esc(d.reason) + '</td>' +
+                        '<td><button type="button" class="btn-sm" style="background:var(--e)" onclick="window.deleteDefect(' + origIdx + ')">❌</button></td>' +
+                    '</tr>';
                 });
-                const dL = document.getElementById('defectLoss');
-                const dC = document.getElementById('defectCount');
-                if(dL) dL.innerText = totalLoss.toFixed(0) + 'р';
-                if(dC) dC.innerText = window.defects.length;
+                document.getElementById('defectLoss').innerText = totalDefectLoss.toFixed(0) + ' р.';
+                document.getElementById('defectCount').innerText = window.defects.length;
             }
 
-            document.getElementById('totalInStock').innerText = totalStock.toFixed(0) + 'р';
-            document.getElementById('totalRev').innerText = totalRevenue.toFixed(0) + 'р';
-            document.getElementById('totalProf').innerText = totalProfit.toFixed(0) + 'р';
-            const profitability = totalStock > 0 ? ((totalRevenue - totalStock)/totalStock*100).toFixed(1) : 0;
-            document.getElementById('profitability').innerText = profitability + '%';
+            var netProfitAfterDefects = totalProfit - totalDefectLoss;
+            document.getElementById('totalInStock').innerText = totalStockValue.toFixed(0) + ' р.';
+            document.getElementById('totalPackStock').innerText = totalPackValue.toFixed(0) + ' р.';
+            document.getElementById('totalRev').innerText = totalRevenue.toFixed(0) + ' р.';
+            document.getElementById('totalProf').innerText = netProfitAfterDefects.toFixed(0) + ' р.';
+            document.getElementById('totalPreorders').innerText = window.preorders.length + ' шт';
 
-            const sSelect = document.getElementById('sProduct');
-            if(sSelect) sSelect.onchange = function() {
-                const idx = this.value;
-                if(idx !== "") document.getElementById('sPrice').value = (window.stock[idx].calcCost * 1.3).toFixed(0);
-            };
-        }
-        window.render = render;
+            var margin = totalRevenue > 0 ? ((netProfitAfterDefects / totalRevenue) * 100).toFixed(1) : 0;
+            document.getElementById('profitability').innerText = margin + '%';
 
-        document.addEventListener('asala-auth', function() { initSync(); });
+            if (sPr) {
+                sPr.onchange = function() {
+                    var idx = this.value;
+                    if (idx !== "" && window.stock[idx]) {
+                        document.getElementById('sPrice').value = ((window.stock[idx].calcCost || 0) * 1.3).toFixed(0);
+                    }
+                };
+            }
+        };
 
-        // Привязка кнопок
-        document.getElementById('themeToggleBtn').addEventListener('click', window.toggleTheme);
-        document.getElementById('toStockBtn').addEventListener('click', window.toStock);
-        document.getElementById('addSaleBtn').addEventListener('click', () => window.addToCart('sale'));
-        document.getElementById('addGiftBtn').addEventListener('click', () => window.addToCart('gift'));
-        document.getElementById('addSelfBtn').addEventListener('click', () => window.addToCart('self'));
-        document.getElementById('doInvoiceBtn').addEventListener('click', () => window.doSale('invoice'));
-        document.getElementById('doReceiptBtn').addEventListener('click', () => window.doSale('receipt'));
-        document.getElementById('doNoneBtn').addEventListener('click', () => window.doSale('none'));
-        document.getElementById('exportBtn').addEventListener('click', window.exportToExcel);
-        document.getElementById('backupBtn').addEventListener('click', window.backupData);
-        document.getElementById('restoreBtn').addEventListener('click', window.restoreData);
-        document.getElementById('addSupBtn').addEventListener('click', window.addSupplierPayment);
-        document.getElementById('addDefectBtn').addEventListener('click', window.addDefect);
-        document.getElementById('dateFrom').addEventListener('change', window.applyFilters);
-        document.getElementById('dateTo').addEventListener('change', window.applyFilters);
-        document.getElementById('filterProduct').addEventListener('change', window.applyFilters);
+        // Запуск при загрузке DOM
+        document.addEventListener('DOMContentLoaded', function() {
+            try {
+                if (sessionStorage.getItem('asala_auth') === '1') {
+                    document.getElementById('passwordModal').style.display = 'none';
+                }
+            } catch(e) {}
+
+            document.getElementById('loginBtn').addEventListener('click', checkPassword);
+            document.getElementById('passwordInput').addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') checkPassword();
+            });
+
+            document.getElementById('themeToggleBtn').addEventListener('click', window.toggleTheme);
+            document.getElementById('toStockBtn').addEventListener('click', window.toStock);
+            document.getElementById('toPackStockBtn').addEventListener('click', window.toPackStock);
+            document.getElementById('sPackType').addEventListener('change', window.updatePackSelector);
+            document.getElementById('sPackVol').addEventListener('change', updatePackHint);
+            document.getElementById('sPackQty').addEventListener('input', updatePackHint);
+            document.getElementById('cartDiscount').addEventListener('input', window.renderCart);
+
+            document.getElementById('addSaleBtn').addEventListener('click', function() { window.addToCart('sale'); });
+            document.getElementById('addGiftBtn').addEventListener('click', function() { window.addToCart('gift'); });
+            document.getElementById('addSelfBtn').addEventListener('click', function() { window.addToCart('self'); });
+            document.getElementById('savePreorderBtn').addEventListener('click', window.savePreorder);
+            document.getElementById('doInvoiceBtn').addEventListener('click', function() { window.doSale('invoice'); });
+            document.getElementById('doReceiptBtn').addEventListener('click', function() { window.doSale('receipt'); });
+            document.getElementById('doNoneBtn').addEventListener('click', function() { window.doSale('none'); });
+
+            document.getElementById('exportBtn').addEventListener('click', window.exportToExcel);
+            document.getElementById('backupBtn').addEventListener('click', window.backupData);
+            document.getElementById('restoreBtn').addEventListener('click', window.restoreData);
+            document.getElementById('addSupBtn').addEventListener('click', window.addSupplierPayment);
+            document.getElementById('addDefectBtn').addEventListener('click', window.addDefect);
+            document.getElementById('dateFrom').addEventListener('change', window.render);
+            document.getElementById('dateTo').addEventListener('change', window.render);
+            document.getElementById('filterProduct').addEventListener('change', window.render);
+
+            document.getElementById('shareWhatsappBtn').addEventListener('click', function() {
+                captureDocBlob().then(function(blob) {
+                    if (!blob) { window._notify('Ошибка создания фото', 'error'); return; }
+                    var file = new File([blob], 'asala_chek_' + Date.now() + '.png', { type: 'image/png' });
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        navigator.share({
+                            files: [file],
+                            title: 'Асаля — Документ',
+                            text: 'Ваш документ от магазина «Асаля» (Горные традиции)'
+                        }).catch(function(e) { console.log(e); });
+                    } else {
+                        var url = URL.createObjectURL(blob);
+                        var a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'asala_document_' + Date.now() + '.png';
+                        a.click();
+                        window._notify('Фото сохранено! Отправьте его в WhatsApp');
+                    }
+                });
+            });
+
+            document.getElementById('downloadImgBtn').addEventListener('click', function() {
+                captureDocBlob().then(function(blob) {
+                    if (!blob) return;
+                    var a = document.createElement('a');
+                    a.href = URL.createObjectURL(blob);
+                    a.download = 'asala_doc_' + Date.now() + '.png';
+                    a.click();
+                    window._notify('Изображение сохранено');
+                });
+            });
+
+            document.getElementById('printDocBtn').addEventListener('click', function() { window.print(); });
+            document.getElementById('closeDocModalBtn').addEventListener('click', function() {
+                document.getElementById('docModal').style.display = 'none';
+            });
+
+            initFirebaseSync();
+            window.updatePackSelector();
+        });
     </script>
 </body>
 </html>
